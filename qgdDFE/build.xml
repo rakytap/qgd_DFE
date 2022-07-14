@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<project
+	name="qgdDFE" default="build" basedir="."
+	xmlns:resolver="antlib:org.apache.maven.resolver.ant"
+>
+    <property environment="env"/>
+    
+    <!-- ~~~~~ Arguments with default values ~~~~~ -->
+    <property name="engine-params" value=""/>
+    <property name="dfe-model" value="MAIA"/>
+    <property name="target" value="DFE_SIM"/>
+	
+	<!-- maxide needs this to determine its classpath through target get-classpath -->
+	<property name="get-classpath-output" value=""/>	
+	
+    <!-- ~~~~~ Project directories ~~~~~ -->
+    <property name="bin.dir" location="bin"/>
+    
+    <path id="main.src">
+		<fileset dir="src" defaultexcludes="yes">
+			<include name="**/*.java"/>
+			<include name="**/*.maxj"/>
+		</fileset>
+	</path>
+
+    <!-- Task for compiling maxj. -->
+	<taskdef 
+		name="maxjcompiler"
+		classname="org.eclipse.jdt.core.ant.taskdef.MaxjTask"
+		classpath="${env.MAXCOMPILERDIR}/lib/ecj.jar"
+		onerror="ignore"/>
+
+	<!-- ~~~~~ You can add Maven package dependencies by uncommenting the code below ~~~~~ -->
+	<!-- <taskdef
+		uri="antlib:org.apache.maven.resolver.ant"
+		resource="org/apache/maven/resolver/ant/antlib.xml"
+    	classpath="build-helpers/maven-resolver-ant-tasks-1.2.1-uber.jar"/>
+
+	<resolver:resolve>
+		<dependencies>
+			<dependency
+				groupId="org.apache.commons"
+				artifactId="commons-csv"
+				version="1.8"/>
+		</dependencies>      
+		<path refid="resolver.classpath" classpath="runtime"/>
+	</resolver:resolve> -->
+
+    <!-- ~~~~~ Maxeler library dependencies ~~~~~ -->
+
+	<!-- MaxCompiler (mandatory) -->
+	<fail message="Environment variable MAXCOMPILERDIR must be set and non-empty.">
+		<condition>
+			<or>
+				<not><isset property="env.MAXCOMPILERDIR"/></not>
+				<equals arg1="${env.MAXCOMPILERDIR}" arg2=""/>
+			</or>
+		</condition>
+	</fail>
+	<path id="maxcompiler.classpath">
+		<pathelement location="${env.MAXCOMPILERDIR}/lib/Max4Platform.jar" />
+		<pathelement location="${env.MAXCOMPILERDIR}/lib/Max5Platform.jar" />
+		<pathelement location="${env.MAXCOMPILERDIR}/lib/GenericIPPlatform.jar" />
+		<pathelement location="${env.MAXCOMPILERDIR}/lib/MaxCompiler.jar" />
+	</path>
+
+	<!-- MaxCompilerNet (optional) -->
+	<condition property="maxcompilernet.classpath" value="${env.MAXCOMPILERNETDIR}/lib/MaxCompilerNet.jar" else="">
+		<and>
+			<isset property="env.MAXCOMPILERNETDIR" />
+			<not> <equals arg1="${env.MAXCOMPILERNETDIR}" arg2="" /> </not>
+		</and>
+	</condition>
+
+	<!-- MaxPower (optional) -->
+	<condition property="maxpower.classpath" value="${env.MAXPOWERDIR}/lib/MaxPower.jar" else="">
+		<and>
+			<isset property="env.MAXPOWERDIR" />
+			<not> <equals arg1="${env.MAXPOWERDIR}" arg2="" /> </not>
+		</and>
+	</condition>
+
+	<!-- MaxPowerNet (optional) -->
+	<condition property="maxpowernet.classpath" value="${env.MAXPOWERNETDIR}/lib/MaxPowerNet.jar" else="">
+		<and>
+			<isset property="env.MAXPOWERNETDIR" />
+			<not> <equals arg1="${env.MAXPOWERNETDIR}" arg2="" /> </not>
+		</and>
+	</condition>
+
+	<!-- MaxUdpFastPath (optional) -->
+	<condition property="maxudpfp.classpath" value="${env.MAXUDPFPDIR}/lib/MaxUdpFastPath.jar" else="">
+		<and>
+			<isset property="env.MAXUDPFPDIR" />
+			<not> <equals arg1="${env.MAXUDPFPDIR}" arg2="" /> </not>
+		</and>
+	</condition>
+
+	<!-- Combine classpath entries into main.classpath -->
+	<path id="main.classpath">
+		<path refid="maxcompiler.classpath"/>
+		<pathelement path="${maxcompilernet.classpath}"/>
+
+		<pathelement path="${maxpower.classpath}"/>
+		<pathelement path="${maxpowernet.classpath}"/>
+		
+        <pathelement path="${maxudpfp.classpath}"/>
+		
+		<pathelement location="${bin.dir}"/>
+	</path>
+
+    <!-- results copying stuff -->
+    <condition property="copy-results-conf" value="build.copy_results_to=${result-dir}" else="">
+        <isset property="result-dir"/>
+    </condition>
+
+    <!-- ~~~~~ Targets ~~~~~ -->
+
+    <!-- build (default) -->
+	<target name="build" depends="create-maxfile"/>
+
+    <!-- compile -->
+	<target name="compile" depends="clean">
+        <mkdir dir="${bin.dir}"/>
+
+        <!-- DEBUG print classpath -->
+        <!-- <pathconvert property="debug.main.classpath" refid="main.classpath"/>
+        <echo message="main.classpath=${debug.main.classpath}"/> -->
+        <!-- DEBUG end -->
+		
+		<!-- DEBUG print resolver classpath -->
+		<!-- <pathconvert property="debug.resolver.classpath" refid="resolver.classpath"/>
+        <echo message="resolver.classpath=${debug.resolver.classpath}"/> -->
+		<!-- DEBUG end -->
+
+        <maxjcompiler srcdir="src" destdir="${bin.dir}" debug="true" failonerror="true" debuglevel="lines,vars,source" source="1.8" target="1.8">
+			<classpath refid="main.classpath"/>
+		</maxjcompiler>
+	</target>
+	
+	<!-- get-classpath -->
+	<!-- maxide needs this -->
+	<target name="get-classpath">
+		<fail message="Property &quot;get-classpath-output&quot; needs to be set">
+			<condition>
+				<or>
+					<not><isset property="get-classpath-output"/></not>
+					<equals arg1="${get-classpath-output}" arg2=""/>
+				</or>
+			</condition>
+		</fail>
+		
+		<pathconvert property="tmp.main.classpath" refid="main.classpath"/>
+        <echo file="${get-classpath-output}" message="${tmp.main.classpath}"/>
+	</target>
+
+    <!-- create-maxfile -->
+    <target name="create-maxfile" depends="compile">
+        <java classname="${manager}" fork="true" failonerror="true">
+            <!-- maxcompiler stuff -->
+            <arg line="${engine-params} target=${target} maxFileName=${maxfile-name} DFEModel=${dfe-model}"/>
+            <env key="MAXSOURCEDIRS" value="${env.PWD}/src"/>
+            <env key="MAXCOMPILER_BUILD_CONF" value="${copy-results-conf}"/>
+
+            <!-- externel classpath -->
+            <classpath refid="main.classpath"/>
+        </java>
+
+        <!-- <echo message="DEBUG: copy-results-conf=${copy-results-conf}"/> -->
+    </target>
+
+    <!-- clean -->
+	<target name="clean">
+		<delete dir="${bin.dir}"/>
+	</target>
+</project>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<slicBuildProfileData>
+    <slicBuildProfiles>
+        <slicBuildProfile name="Debug">
+            <makeMode>debug</makeMode>
+            <maxfileDirectory/>
+        </slicBuildProfile>
+        <slicBuildProfile name="Release">
+            <makeMode>release</makeMode>
+            <maxfileDirectory/>
+        </slicBuildProfile>
+    </slicBuildProfiles>
+</slicBuildProfileData>

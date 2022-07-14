@@ -1,0 +1,8 @@
+-L/opt/maxcompiler-2021.1/lib
+-L/opt/maxeler/maxeleros/lib
+-lslic
+-lmaxeleros
+-lm
+-lpthread
+-lcurl
+-lpthread

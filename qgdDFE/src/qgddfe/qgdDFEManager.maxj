@@ -1,0 +1,30 @@
+package qgddfe;
+
+import com.maxeler.maxcompiler.v2.build.EngineParameters;
+import com.maxeler.maxcompiler.v2.managers.custom.DFELink;
+import com.maxeler.maxcompiler.v2.managers.custom.blocks.KernelBlock;
+
+import com.maxeler.platform.max5.manager.XilinxAlveoU250Manager;;
+
+public class qgdDFEManager extends XilinxAlveoU250Manager {
+
+	public static final String kernelName = "qgdDFEKernel";
+
+	public qgdDFEManager(EngineParameters params) {
+		super(params);
+
+		final KernelBlock kernel = addKernel(new qgdDFEKernel(makeKernelParameters(kernelName)));
+		final DFELink x = addStreamFromCPU("x");
+		kernel.getInput("x") <== x;
+
+		final DFELink y = addStreamToCPU("y");
+		y <== kernel.getOutput("y");
+	}
+
+	public static void main(final String[] argv) {
+		final EngineParameters params = new EngineParameters(argv);
+		final qgdDFEManager manager = new qgdDFEManager(params);
+		manager.build();
+	}
+
+}

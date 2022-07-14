@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<maxjBuildProfileData>
+    <maxjBuildProfiles>
+        <maxjBuildProfile name="Simulation">
+            <manager>qgddfe.qgdDFEManager</manager>
+            <maxcompilerTarget>DFE_SIM</maxcompilerTarget>
+            <maxfileName>qgdDFE</maxfileName>
+            <resultDir>/home/rakytap/qgd_DFE/qgdDFE/builds/simulation</resultDir>
+            <engineParams/>
+            <jvmArgs>-Xmx2G</jvmArgs>
+        </maxjBuildProfile>
+        <maxjBuildProfile name="Bitstream">
+            <manager>qgddfe.qgdDFEManager</manager>
+            <maxcompilerTarget>DFE</maxcompilerTarget>
+            <maxfileName>qgdDFE</maxfileName>
+            <resultDir>/home/rakytap/qgd_DFE/qgdDFE/builds/bitstream</resultDir>
+            <engineParams/>
+            <jvmArgs>-Xmx2G</jvmArgs>
+        </maxjBuildProfile>
+    </maxjBuildProfiles>
+</maxjBuildProfileData>
