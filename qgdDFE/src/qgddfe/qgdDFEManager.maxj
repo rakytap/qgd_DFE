@@ -3,6 +3,17 @@ package qgddfe;
 import com.maxeler.maxcompiler.v2.build.EngineParameters;
 import com.maxeler.maxcompiler.v2.managers.custom.DFELink;
 import com.maxeler.maxcompiler.v2.managers.custom.blocks.KernelBlock;
+import com.maxeler.maxcompiler.v2.managers.engine_interfaces.CPUTypes;
+import com.maxeler.maxcompiler.v2.managers.engine_interfaces.EngineInterface;
+import com.maxeler.maxcompiler.v2.managers.engine_interfaces.EngineInterface.Direction;
+import com.maxeler.maxcompiler.v2.managers.engine_interfaces.InterfaceParam;
+
+import com.maxeler.maxcompiler.v2.managers.custom.stdlib.LMemInterface;
+import com.maxeler.maxcompiler.v2.managers.custom.stdlib.LMemCommandGroup;
+
+import com.maxeler.platform.max5.manager.ImplementationStrategy;
+import com.maxeler.platform.max5.manager.BuildConfig;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelConfiguration;
 
 import com.maxeler.platform.max5.manager.XilinxAlveoU250Manager;;
 
@@ -12,6 +23,17 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 
 	public qgdDFEManager(EngineParameters params) {
 		super(params);
+		
+//		getLMemGlobalConfig().setMemoryFrequency(LMemFrequency.LMEM_1200MHZ);
+		getLMemGlobalConfig().setMcpFrequency( 220 ); //220
+		LMemInterface iface = addLMemInterface();
+		DFELink cpu2lmem = iface.addStreamToLMem("cpu2lmem", LMemCommandGroup.MemoryAccessPattern.LINEAR_1D);
+		DFELink lmem2cpu = iface.addStreamFromLMem("lmem2cpu", LMemCommandGroup.MemoryAccessPattern.LINEAR_1D);
+		
+		DFELink fromcpu = addStreamFromCPU("fromcpu");
+		DFELink tocpu = addStreamToCPU("tocpu");
+		cpu2lmem <== fromcpu;
+		tocpu <== lmem2cpu;		
 
 		final KernelBlock kernel = addKernel(new qgdDFEKernel(makeKernelParameters(kernelName)));
 		final DFELink x = addStreamFromCPU("x");
@@ -20,10 +42,106 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 		final DFELink y = addStreamToCPU("y");
 		y <== kernel.getOutput("y");
 	}
+	
+/**
+@brief ???????????
+@param  
+*/
+	static EngineInterface interfaceDefault () {
 
-	public static void main(final String[] argv) {
+		EngineInterface ei = new EngineInterface();
+		
+
+		ei.ignoreStream("tocpu");		
+		ei.ignoreStream("fromcpu");			
+
+                ei.ignoreLMem("cpu2lmem");
+                ei.ignoreLMem("lmem2cpu");
+		return ei ;
+	}	
+	
+	
+/**
+@brief ???????????
+@param  
+*/
+	static EngineInterface interfaceWrite(String name) {
+		EngineInterface ei = new EngineInterface(name);
+
+		// The number of comnponents in the wave-vector 
+		InterfaceParam size  = ei.addParam("element_num", CPUTypes.INT32);
+	
+		// the overall size of the state vector
+		InterfaceParam sizeInBytes = size * 2*CPUTypes.FLOAT.sizeInBytes();
+
+                // starting address of LMEM
+		InterfaceParam zero = ei.addConstant(0l);
+
+		ei.setStream("fromcpu", CPUTypes.VOID, sizeInBytes );
+		ei.setLMemLinear("cpu2lmem", zero, sizeInBytes);
+
+		ei.ignoreAll(Direction.IN_OUT);
+
+
+		return ei;
+	}
+
+
+/**
+@brief ???????????
+@param  
+*/
+	static EngineInterface interfaceRead(String name) {
+		EngineInterface ei = new EngineInterface(name);
+
+		// The number of comnponents in the wave-vector 
+		InterfaceParam size  = ei.addParam("element_num", CPUTypes.INT32);
+
+		// the overall size of the state vector
+		InterfaceParam sizeInBytes = size * 2 *CPUTypes.FLOAT.sizeInBytes();
+
+                // starting address of LMEM
+		InterfaceParam zero = ei.addConstant(0l);
+
+		ei.setLMemLinear("lmem2cpu", zero, sizeInBytes);
+		ei.setStream("tocpu", CPUTypes.VOID, sizeInBytes);
+
+		ei.ignoreAll(Direction.IN_OUT);
+
+
+		return ei;
+	}
+	
+		
+/**
+@brief ???????????
+@param  
+*/
+	public static void main(final String[] argv) {		
 		final EngineParameters params = new EngineParameters(argv);
 		final qgdDFEManager manager = new qgdDFEManager(params);
+
+		BuildConfig conf = manager.getBuildConfig();
+/*
+		conf.setImplementationStrategies(  	ImplementationStrategy.CONGESTION_SPREAD_LOGIC_HIGH,
+ 							ImplementationStrategy.CONGESTION_SPREAD_LOGIC_MEDIUM,
+							ImplementationStrategy.VIVADO_DEFAULT, 
+							ImplementationStrategy.MAXELER3,  
+							ImplementationStrategy.PERFORMANCE_WL_BLOCK_PLACEMENT_FANOUT_OPT, 
+							ImplementationStrategy.PERFORMANCE_NET_DELAY_HIGH );
+*/
+		conf.setImplementationStrategies(  ImplementationStrategy.VIVADO_DEFAULT );
+		conf.setParallelism( 64 );
+
+		manager.setDefaultStreamClockFrequency(200);
+
+
+
+		manager.createSlicInterface(qgdDFEManager.interfaceDefault());
+		manager.createSlicInterface(qgdDFEManager.interfaceWrite("writeLMem"));
+		manager.createSlicInterface(qgdDFEManager.interfaceRead("readLMem"));
+
+		
 		manager.build();
 	}
 
