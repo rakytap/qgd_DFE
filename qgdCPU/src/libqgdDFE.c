@@ -79,6 +79,8 @@ int initialize_DFE()
     printf("Maxfile uploaded to DFE\n");
 #endif
 
+printf("burst size in bytes: %d\n", max_get_burst_size(maxfile, NULL));
+
     return 0;
 }
 
@@ -175,8 +177,8 @@ int calcqgdKernelDFE(int element_num)
 printf("%d\n", element_num);
 
     qgdDFE_actions_t interface_actions;
-    interface_actions.ticks_qgdDFEKernel = element_num*2;
-    interface_actions.param_element_num = element_num*2;
+    interface_actions.ticks_qgdDFEKernel = element_num;
+    interface_actions.param_element_num = element_num;
     //interface_actions.instream_x = dataIn;
     //interface_actions.instream_size_x = SIZE * sizeof dataIn[0];
     //interface_actions.outstream_y = dataOut; 

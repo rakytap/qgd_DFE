@@ -1,0 +1,94 @@
+package qgddfe;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.Kernel;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelParameters;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.SMIO;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.LMemCommandStream;
+//import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.CounterChain;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
+import com.maxeler.maxcompiler.v2.utils.Bits;
+
+public class MemCommGeneratorKernel extends Kernel {
+
+
+	public MemCommGeneratorKernel(final KernelParameters parameters) {
+		super(parameters);
+		
+		DFEVar burstNum = io.scalarInput("burstNum", dfeUInt(32) );
+		DFEVar chunkNum = io.scalarInput("chunkNum",  dfeUInt(8)); // number of chunks in one burst
+		DFEVar addrOffset = io.scalarInput("addrOffset", dfeUInt(32) );		
+
+		SMIO MCGSM = addStateMachine("MCG", new MemCommandGenStateMachine( this));
+		MCGSM.connectInput("chunkNum", chunkNum);
+
+		DFEVar burstCount        = MCGSM.getOutput("burstCount");
+		DFEVar issueMemCommand   = MCGSM.getOutput("issueMemCommand");
+
+		issueMemCommand = optimization.pipeline( issueMemCommand);
+		issueMemCommand = optimization.pipeline( issueMemCommand);
+		issueMemCommand = optimization.pipeline( issueMemCommand);
+
+		DFEVar MemAddr = burstCount;
+		MemAddr = optimization.pipeline( MemAddr );
+		MemAddr = optimization.pipeline( MemAddr );
+		//MemAddr = optimization.pipeline( MemAddr );
+
+
+		DFEVar burstNum_remained    = burstNum - burstCount;		
+
+		DFEVar interruptSignal = burstNum_remained <= 255;
+		DFEVar burstNum_remained8 = burstNum_remained.cast( dfeUInt(8) );
+		burstNum_remained8 = optimization.pipeline( burstNum_remained8 );
+		DFEVar burstNum2issue  = interruptSignal ? burstNum_remained8 : constant.var(dfeUInt(8), 255);
+
+		interruptSignal = optimization.pipeline( interruptSignal );
+
+/*
+
+		// Memory controller ticks
+		CounterChain chain = control.count.makeCounterChain();
+		DFEVar memCommandCount = chain.addCounter(10000, 1);
+		DFEVar burstCount = chain.addCounter(255, 1);
+		DFEVar chunkCount = chain.addCounter(chunkNum, 1);
+
+		DFEVar issueMemCommand = burstCount === 0 & chunkCount === 0;
+
+
+		DFEVar burstNumIssued  = constant.var(dfeUInt(32), 255)*memCommandCount.cast(dfeUInt(32));
+		DFEVar burstNum_tmp    = burstNum - burstNumIssued;
+		DFEVar interruptSignal = burstNum_tmp <= 255;
+		DFEVar burstNum_tmp8 = burstNum_tmp.cast( dfeUInt(8) );
+		burstNum_tmp8 = optimization.pipeline( burstNum_tmp8 );
+		DFEVar burstNum2issue  = interruptSignal ? burstNum_tmp8 : constant.var(dfeUInt(8), 255);
+
+		burstNumIssued  = optimization.pipeline( burstNumIssued );
+		burstNumIssued  = optimization.pipeline( burstNumIssued );
+		burstNumIssued  = optimization.pipeline( burstNumIssued );
+		interruptSignal = optimization.pipeline( interruptSignal );		
+
+*/
+//debug.simPrintf("split signal: %d, %d, %d, %d, %d, %d, %d, %d\n", chunkCount, burstCount, memCommandCount, issueMemCommand, burstNum2issue, burstNumIssued, burstNum, interruptSignal);
+
+
+		// creating custom memory controller
+		DFEStruct cmdStream = LMemCommandStream.getLMemCommandDFEStructType().newInstance(this);
+
+
+		Bits one = new Bits(15);
+		one.setBit (0, 1);
+		one.setOthers(0);
+
+		cmdStream["address"] = addrOffset + MemAddr;
+		cmdStream["size"] = burstNum2issue;
+		cmdStream["inc"] = constant.var(dfeInt(8), 1);
+		cmdStream["stream"] = constant.var(dfeRawBits(15), one);
+		cmdStream["tag"] = interruptSignal;//constant.var(true);
+
+
+		LMemCommandStream.makeKernelOutput("cmdStream", issueMemCommand, cmdStream);
+
+	}
+
+}

@@ -1,0 +1,110 @@
+/**
+ * Document: MaxCompiler State Machine Tutorial (maxcompiler-sm-tutorial.pdf)
+ * Example: 1      Name: Simple statemachine
+ * MaxFile name: SimpleSM
+ * Summary:
+ *      A state machine that counts up to a specified maximum and back down again.
+ */
+
+package qgddfe;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelLib;
+import com.maxeler.maxcompiler.v2.statemachine.DFEsmInput;
+import com.maxeler.maxcompiler.v2.statemachine.DFEsmOutput;
+import com.maxeler.maxcompiler.v2.statemachine.DFEsmStateValue;
+import com.maxeler.maxcompiler.v2.statemachine.kernel.KernelStateMachine;
+
+class MemCommandGenStateMachine extends KernelStateMachine {
+	enum Modes {
+		COUNTING_UP, HOLD_COUNT, COUNTING_DOWN
+	}
+
+	// I/O
+	private final DFEsmOutput oBurstCount;
+	private final DFEsmOutput oIssueMemCommand;
+
+
+	private final DFEsmInput ChunkNum;
+
+
+	// State
+	private final DFEsmStateValue chunkCounter;
+	private final DFEsmStateValue burstCounterWrapped;
+	private final DFEsmStateValue burstCounter;
+	private final DFEsmStateValue issueMemCommand;
+
+
+	public MemCommandGenStateMachine(KernelLib owner) {
+		super(owner);
+
+		// I/O
+		oBurstCount = io.output("burstCount", dfeUInt(32));
+		oIssueMemCommand = io.output("issueMemCommand", dfeUInt(1));
+
+		ChunkNum      = io.input("chunkNum", dfeUInt(8));
+
+
+		// State
+		chunkCounter        = state.value(dfeUInt(8), 1);
+		burstCounterWrapped = state.value(dfeUInt(8), 1);
+		burstCounter        = state.value(dfeUInt(32), 0);
+		issueMemCommand     = state.value(dfeUInt(1), 1);
+
+    
+		IF(chunkCounter < ChunkNum) {
+			chunkCounter.next <== chunkCounter + 1;
+			issueMemCommand.next <== 0;
+		} ELSE {
+			chunkCounter.next <== 1;
+
+                       IF ( burstCounterWrapped < 255 ) {
+				burstCounterWrapped.next <== burstCounterWrapped + 1;
+				issueMemCommand.next <== 0;
+			} ELSE {
+				burstCounterWrapped.next <== 1;
+	                        burstCounter.next <== burstCounter + 255;
+				issueMemCommand.next <== 1;
+				
+			}
+		}
+
+		//sHoldCounter = state.value(counterType, 0);
+/*		
+		SWITCH(sMode) {
+			CASE(Modes.COUNTING_UP) {
+				IF(sCounter === iMax) {
+					sMode.next <== Modes.HOLD_COUNT;
+				} ELSE {
+					IF(sCounter > iMax) {
+						sCounter.next <== iMax;
+						sMode.next <== Modes.HOLD_COUNT;
+					} ELSE {
+						sCounter.next <== sCounter + 1;
+					}
+				}
+			}
+			CASE(Modes.COUNTING_DOWN) {
+				IF(sCounter === 0) {
+					sCounter.next <== sCounter + 1;
+					sMode.next <== Modes.COUNTING_UP;
+				} ELSE {
+					sCounter.next <== sCounter - 1;
+				}
+			}
+			OTHERWISE {
+				IF (sHoldCounter === mHoldCount)
+				{
+					sHoldCounter.next <== 0;
+					sMode.next <== Modes.COUNTING_DOWN;
+				}
+				ELSE {
+					sHoldCounter.next <== sHoldCounter + 1;
+				}
+			}
+		}
+*/
+
+		oBurstCount <== burstCounter;
+		oIssueMemCommand <== issueMemCommand;
+
+	}
+}

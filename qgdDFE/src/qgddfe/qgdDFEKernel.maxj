@@ -10,10 +10,10 @@ public class qgdDFEKernel extends Kernel {
 		super(parameters);
 
 		// Input
-		final DFEVar x = io.input("x", dfeUInt(32));
+		final DFEVar x = io.input("x", dfeUInt(64));
 
 		// Output
-		io.output("y", x, dfeUInt(32));
+		io.output("y", x, dfeUInt(64));
 	}
 
 }
