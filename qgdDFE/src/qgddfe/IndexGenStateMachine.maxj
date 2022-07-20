@@ -1,0 +1,91 @@
+/**
+ * Document: MaxCompiler State Machine Tutorial (maxcompiler-sm-tutorial.pdf)
+ * Example: 1      Name: Simple statemachine
+ * MaxFile name: SimpleSM
+ * Summary:
+ *      A state machine that counts up to a specified maximum and back down again.
+ */
+
+package qgddfe;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelLib;
+import com.maxeler.maxcompiler.v2.statemachine.DFEsmInput;
+import com.maxeler.maxcompiler.v2.statemachine.DFEsmOutput;
+import com.maxeler.maxcompiler.v2.statemachine.DFEsmStateValue;
+import com.maxeler.maxcompiler.v2.statemachine.kernel.KernelStateMachine;
+
+class IndexGenStateMachine extends KernelStateMachine {
+	enum Modes {
+		COUNTING_UP, HOLD_COUNT, COUNTING_DOWN
+	}
+
+	// I/O
+	private final DFEsmOutput oIndexCounter;
+	private final DFEsmOutput oTargetState; // 0 (downspin) or 1 (upspin) of the target qubit
+
+
+	private final DFEsmInput indexStepTarget;
+	private final DFEsmInput dim;
+
+
+	// State
+	private final DFEsmStateValue indexCounter;
+	private final DFEsmStateValue indexCounterWrapped;
+	private final DFEsmStateValue targetState;
+
+
+	public IndexGenStateMachine(KernelLib owner) {
+		super(owner);
+
+		// I/O
+		oIndexCounter     = io.output("indexCounter", dfeUInt(11));
+		oTargetState      = io.output("targetState", dfeUInt(1));
+
+		indexStepTarget      = io.input("indexStepTarget", dfeUInt(11));
+		dim                  = io.input("dim", dfeUInt(11));
+
+
+		// State
+		indexCounter        = state.value(dfeUInt(11), 1);
+		indexCounterWrapped = state.value(dfeUInt(11), 1);
+		targetState         = state.value(dfeUInt(1), 0);
+
+		IF ( indexCounter < dim ) {
+			indexCounter.next <== indexCounter + 1;
+
+			IF(indexCounterWrapped < indexStepTarget) {
+				indexCounterWrapped.next <== indexCounterWrapped + 1;
+			} ELSE {
+				indexCounterWrapped.next <== 1;
+				targetState.next <== targetState + 1;
+			}
+
+		} ELSE {
+			indexCounter.next        <== 1;
+			indexCounterWrapped.next <== 1;
+			targetState.next         <== 0;
+		}
+
+/*    
+		IF(chunkCounter < ChunkNum) {
+			chunkCounter.next <== chunkCounter + 1;
+			issueMemCommand.next <== 0;
+		} ELSE {
+			chunkCounter.next <== 1;
+
+                       IF ( burstCounterWrapped < 255 ) {
+				burstCounterWrapped.next <== burstCounterWrapped + 1;
+				issueMemCommand.next <== 0;
+			} ELSE {
+				burstCounterWrapped.next <== 1;
+	                        burstCounter.next <== burstCounter + 255;
+				issueMemCommand.next <== 1;
+				
+			}
+		}
+*/
+
+		oIndexCounter     <== indexCounter;
+		oTargetState <== targetState;
+
+	}
+}

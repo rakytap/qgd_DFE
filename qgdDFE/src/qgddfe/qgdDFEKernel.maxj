@@ -4,16 +4,78 @@ import com.maxeler.maxcompiler.v2.kernelcompiler.Kernel;
 import com.maxeler.maxcompiler.v2.kernelcompiler.KernelParameters;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
 
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEType;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEFix.SignMode;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEComplex;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEComplexType;
+import com.maxeler.maxcompiler.v2.kernelcompiler.SMIO;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelBase;
+import java.util.ArrayList;
+import java.util.List;
+
 public class qgdDFEKernel extends Kernel {
 
-	public qgdDFEKernel(final KernelParameters parameters) {
+	DFEType dataTypeFix32            = dfeFixOffset(32, -31, SignMode.TWOSCOMPLEMENT);
+	DFEComplexType cplxTypeFix32     = new DFEComplexType(dataTypeFix32);
+
+
+
+
+	DFEVar shiftLeft(long value, DFEVar shift, int bits ) {
+
+		List<DFEVar> values = new ArrayList<DFEVar>();
+
+		KernelBase<?> base = shift.getOwner();
+
+		for (int i = 0; i < bits; i++) {
+
+			values.add(base.constant.var(KernelBase.dfeUInt(bits), value << i));
+
+		}
+
+        	return base.control.mux(shift, values);
+
+	}
+
+
+	public qgdDFEKernel(final KernelParameters parameters, int dimMax) {
 		super(parameters);
 
 		// Input
-		final DFEVar x = io.input("x", dfeUInt(64));
+		final DFEComplex x = io.input("x", cplxTypeFix32);
+
+		DFEVar controlQubit = io.scalarInput("controlQubit", dfeUInt(4) );
+		DFEVar targetQubit  = io.scalarInput("targetQubit",  dfeUInt(4));
+		DFEVar dim          = io.scalarInput("dim", dfeUInt(11) );
+
+		DFEVar indexStepControl = shiftLeft( 1, controlQubit, 11 );
+		DFEVar indexStepTarget = shiftLeft( 1, targetQubit, 11 );
+//debug.simPrintf("target : %d, %d\n", targetQubit, indexStepTarget);
+//debug.simPrintf("control : %d, %d\n", controlQubit, indexStepControl);
+
+		SMIO IndexGenSM = addStateMachine("IndexGenSM", new IndexGenStateMachine( this));
+		IndexGenSM.connectInput("indexStepTarget", indexStepTarget);
+		IndexGenSM.connectInput("dim", dim);
+
+DFEVar indexCounter        = IndexGenSM.getOutput("indexCounter");
+DFEVar targetState        = IndexGenSM.getOutput("targetState");
+
+DFEVar indexCounterPair    = targetState ? -indexStepTarget.cast(dfeInt(11)) : indexStepTarget.cast(dfeInt(11));//IndexGenSM.getOutput("indexCounterPair");
+
+//debug.simPrintf("indexCounters: %d, %d, target state: %d, indexStepTarget: %d\n", indexCounter, indexCounterPair, targetState, indexStepTarget);
+//debug.simPrintf("indexCounters: %d\n", indexCounterPair);
+
+		//DFEComplex stream_0 = x;//stream.offset(x, indexCounter-1, 0, dimMax/2);
+		DFEComplex stream_1 = stream.offset(x, indexCounterPair, -dimMax/2, dimMax/2);
+
+
+		DFEComplex y = stream_1;
+//debug.simPrintf("indexCounters: %f, %f\n", x.getReal(), y.getReal());
+
 
 		// Output
-		io.output("y", x, dfeUInt(64));
+		io.output("y", y, cplxTypeFix32);
 	}
 
 }

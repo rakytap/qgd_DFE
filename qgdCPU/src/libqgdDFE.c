@@ -19,6 +19,11 @@ typedef struct {
 	double imag;
 } Complex16;
 
+typedef struct {
+  float real;
+  float imag;
+} Complex8;
+
 /// static variable to indicate whether DFE is initialized
 static bool initialized = false;
 static max_file_t* maxfile = NULL;
@@ -99,7 +104,7 @@ typedef struct {
  * \brief ???????????
  * 
  */
-int load2LMEM( float* data, int element_num ) {
+int load2LMEM( Complex8* data, size_t dim ) {
 
     // test whether the DFE engine can be initialized
     if ( initialize_DFE() ) {
@@ -107,12 +112,25 @@ int load2LMEM( float* data, int element_num ) {
         return 1;
     }
 
+    size_t element_num = dim*dim;
+
+    // convert data to fixpoint number representation into (0,31) and a sign bit and transpose the matrix to get column-major representation
+    int32_t* data_fix = (int32_t*)malloc( 2*element_num*sizeof(int32_t) );
+    for (size_t row_idx=0; row_idx<dim; row_idx++) {
+        for (size_t col_idx=0; col_idx<dim; col_idx++) {
+            data_fix[2*(col_idx*dim+row_idx)] = ceil(data[row_idx*dim+col_idx].real*(1<<30));
+            data_fix[2*(col_idx*dim+row_idx)+1] = ceil(data[row_idx*dim+col_idx].imag*(1<<30));
+        }
+    }
+
     // upload data to DFE LMEM
     qgdDFE_writeLMem_actions_t interface_actions;
-    interface_actions.param_element_num = element_num;
-    interface_actions.instream_fromcpu = (void*)data;
+    interface_actions.param_element_num = 2*element_num;
+    interface_actions.instream_fromcpu = (void*)data_fix;
 
     qgdDFE_writeLMem_run( engine, &interface_actions);
+
+    free( data_fix );
 
 
 //#ifdef DEBUG
@@ -129,7 +147,7 @@ int load2LMEM( float* data, int element_num ) {
  * \brief ???????????
  * 
  */
-int downloadFromLMEM( float* data, int element_num ) {
+int downloadFromLMEM( Complex8* data, size_t dim ) {
 
     // test whether the DFE engine can be initialized
     if ( initialize_DFE() ) {
@@ -137,13 +155,29 @@ int downloadFromLMEM( float* data, int element_num ) {
         return 1;
     }
 
+    size_t element_num = dim*dim;
+
+    // cast fix point to floats
+    // convert data to fixpoint number representation into (0,31) and a sign bit
+    int32_t* data_fix = (int32_t*)malloc( 2*element_num*sizeof(int32_t) );
+
+
     // download data from DFE LMEM
     qgdDFE_readLMem_actions_t interface_actions;
-    interface_actions.param_element_num = element_num;
-    interface_actions.outstream_tocpu = (void*)data;
+    interface_actions.param_element_num = 2*element_num;
+    interface_actions.outstream_tocpu = (void*)data_fix;
 
     qgdDFE_readLMem_run( engine, &interface_actions);
 
+    for (size_t row_idx=0; row_idx<dim; row_idx++) {
+        for (size_t col_idx=0; col_idx<dim; col_idx++) {
+            data[row_idx*dim+col_idx].real = ((float)data_fix[2*(col_idx*dim+row_idx)]/(1<<30));
+            data[row_idx*dim+col_idx].imag = ((float)data_fix[2*(col_idx*dim+row_idx)+1]/(1<<30));
+        }
+    }
+
+
+    free( data_fix );
 
 //#ifdef DEBUG
     printf("Data downloaded from DFE LMEM\n");
@@ -160,7 +194,7 @@ int downloadFromLMEM( float* data, int element_num ) {
  * \brief ???????????
  * 
  */
-int calcqgdKernelDFE(int element_num)
+int calcqgdKernelDFE(size_t dim, int target_qbit)
 {
 
 /*
@@ -174,11 +208,19 @@ int calcqgdKernelDFE(int element_num)
 
     const uint32_t dataIn[SIZE] = { 1, 0, 2, 0, 4, 1, 8, 3 };
     uint32_t dataOut[SIZE];
-printf("%d\n", element_num);
+
+    size_t element_num = dim*dim;
+int controlQubit = 0;
+//int targetQubit = 2;
+
+printf("%d, control qbit: %d, target qbit: %d\n", element_num, controlQubit, target_qbit);
 
     qgdDFE_actions_t interface_actions;
     interface_actions.ticks_qgdDFEKernel = element_num;
-    interface_actions.param_element_num = element_num;
+    interface_actions.param_element_num  = element_num;
+    interface_actions.param_controlQubit = controlQubit;
+    interface_actions.param_targetQubit  = target_qbit;
+    interface_actions.param_dim = dim;
     //interface_actions.instream_x = dataIn;
     //interface_actions.instream_size_x = SIZE * sizeof dataIn[0];
     //interface_actions.outstream_y = dataOut; 

@@ -19,6 +19,9 @@ import com.maxeler.platform.max5.manager.XilinxAlveoU250Manager;;
 
 public class qgdDFEManager extends XilinxAlveoU250Manager {
 
+	int dim = 1024;
+	int dim_over_2 = dim/2;
+
 
 	public qgdDFEManager(EngineParameters params) {
 		super(params);
@@ -32,12 +35,12 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
                 // memory command gererator kernels (mcg)
 		final KernelBlock mcg_cpu2lmem_kernel = addKernel(new MemCommGeneratorKernel(makeKernelParameters("CPU2LMEMCommGenKernel")));
 		final KernelBlock mcg_lmem2cpu_kernel = addKernel(new MemCommGeneratorKernel(makeKernelParameters("LMEM2CPUCommGenKernel")));
-final KernelBlock mcg_fromlmem_kernel = addKernel(new MemCommGeneratorKernel(makeKernelParameters("FromLMEMCommGenKernel")));
-final KernelBlock mcg_tolmem_kernel   = addKernel(new MemCommGeneratorKernel(makeKernelParameters("ToLMEMCommGenKernel")));
+		final KernelBlock mcg_fromlmem_kernel = addKernel(new MemCommGeneratorKernel(makeKernelParameters("FromLMEMCommGenKernel")));
+		final KernelBlock mcg_tolmem_kernel   = addKernel(new MemCommGeneratorKernel(makeKernelParameters("ToLMEMCommGenKernel")));
 		assignToNamedRegion(mcg_cpu2lmem_kernel, XilinxAlveoU250Manager.NamedRegion.SLR0);
 		assignToNamedRegion(mcg_lmem2cpu_kernel, XilinxAlveoU250Manager.NamedRegion.SLR0);
-assignToNamedRegion(mcg_fromlmem_kernel, XilinxAlveoU250Manager.NamedRegion.SLR0);
-assignToNamedRegion(mcg_tolmem_kernel, XilinxAlveoU250Manager.NamedRegion.SLR0);
+		assignToNamedRegion(mcg_fromlmem_kernel, XilinxAlveoU250Manager.NamedRegion.SLR0);
+		assignToNamedRegion(mcg_tolmem_kernel, XilinxAlveoU250Manager.NamedRegion.SLR0);
 
 
 		//DFELink cpu2lmem = iface.addStreamToLMem("cpu2lmem", LMemCommandGroup.MemoryAccessPattern.LINEAR_1D);
@@ -55,7 +58,7 @@ assignToNamedRegion(mcg_tolmem_kernel, XilinxAlveoU250Manager.NamedRegion.SLR0);
                 /////////////////// Computing kernels ///////////////////////
            
 
-		final KernelBlock kernel = addKernel(new qgdDFEKernel(makeKernelParameters("qgdDFEKernel")));
+		final KernelBlock kernel = addKernel(new qgdDFEKernel(makeKernelParameters("qgdDFEKernel"), dim));
 		assignToNamedRegion(kernel, XilinxAlveoU250Manager.NamedRegion.SLR0);
 
 
@@ -63,7 +66,7 @@ assignToNamedRegion(mcg_tolmem_kernel, XilinxAlveoU250Manager.NamedRegion.SLR0);
 
 
                // DFELink inA = iface.addStreamFromLMem("inA", LMemCommandGroup.MemoryAccessPattern.LINEAR_1D);
-DFELink inA = iface.addStreamFromLMem("inA", mcg_fromlmem_kernel.getOutput("cmdStream"));
+		DFELink inA = iface.addStreamFromLMem("inA", mcg_fromlmem_kernel.getOutput("cmdStream"));
 
 		//final DFELink x = addStreamFromCPU("x");
 		kernel.getInput("x") <== inA;
@@ -71,7 +74,7 @@ DFELink inA = iface.addStreamFromLMem("inA", mcg_fromlmem_kernel.getOutput("cmdS
 
 
                 //DFELink outA = iface.addStreamToLMem("outA", LMemCommandGroup.MemoryAccessPattern.LINEAR_1D);
-DFELink outA = iface.addStreamToLMem("outA", mcg_tolmem_kernel.getOutput("cmdStream"));
+		DFELink outA = iface.addStreamToLMem("outA", mcg_tolmem_kernel.getOutput("cmdStream"));
                 
 
 		//final DFELink y = addStreamToCPU("y");
@@ -90,6 +93,13 @@ DFELink outA = iface.addStreamToLMem("outA", mcg_tolmem_kernel.getOutput("cmdStr
 
                 // The number of comnponents in the wave-vector 
 		InterfaceParam size  = ei.addParam("element_num", CPUTypes.INT32);
+		InterfaceParam controlQubit  = ei.addParam("controlQubit", CPUTypes.INT32);
+		InterfaceParam targetQubit  = ei.addParam("targetQubit", CPUTypes.INT32);
+		InterfaceParam dim  = ei.addParam("dim", CPUTypes.INT32);
+
+		ei.setScalar("qgdDFEKernel", "controlQubit", controlQubit);
+		ei.setScalar("qgdDFEKernel", "targetQubit", targetQubit);
+		ei.setScalar("qgdDFEKernel", "dim", dim);
 
                 // the overall size of the matrix
 		InterfaceParam sizeInBytes = size * 2*CPUTypes.FLOAT.sizeInBytes();
@@ -118,7 +128,7 @@ DFELink outA = iface.addStreamToLMem("outA", mcg_tolmem_kernel.getOutput("cmdStr
 		ei.setTicks("CPU2LMEMCommGenKernel", zero);
 		ei.setTicks("LMEM2CPUCommGenKernel", zero);
 
-ei.setLMemInterruptOn("outA");		
+		ei.setLMemInterruptOn("outA");		
 
 
 		ei.ignoreStream("tocpu");		
@@ -255,7 +265,7 @@ ei.setLMemInterruptOn("outA");
 		conf.setImplementationStrategies(  ImplementationStrategy.VIVADO_DEFAULT );
 		conf.setParallelism( 64 );
 
-		manager.setDefaultStreamClockFrequency(300);
+		manager.setDefaultStreamClockFrequency(350);
 
 
 
