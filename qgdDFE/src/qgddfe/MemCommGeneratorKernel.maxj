@@ -10,9 +10,17 @@ import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.LMemCommandStream;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
 import com.maxeler.maxcompiler.v2.utils.Bits;
 
+/**
+@brief ????????????
+@return ??????????
+*/
 public class MemCommGeneratorKernel extends Kernel {
 
 
+/**
+@brief ????????????
+@return ??????????
+*/
 	public MemCommGeneratorKernel(final KernelParameters parameters) {
 		super(parameters);
 		

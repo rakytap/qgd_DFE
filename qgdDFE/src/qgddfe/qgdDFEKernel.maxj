@@ -11,17 +11,46 @@ import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEComplexType;
 import com.maxeler.maxcompiler.v2.kernelcompiler.SMIO;
 
 import com.maxeler.maxcompiler.v2.kernelcompiler.KernelBase;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStructType;
+
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+@brief ????????????
+@return ??????????
+*/
 public class qgdDFEKernel extends Kernel {
 
 	DFEType dataTypeFix32            = dfeFixOffset(32, -31, SignMode.TWOSCOMPLEMENT);
 	DFEComplexType cplxTypeFix32     = new DFEComplexType(dataTypeFix32);
 
 
+/**
+@brief ????????????
+@return ??????????
+*/
+	// class to store elementary data of a gate operation
+	class GateKernelStructType extends DFEStructType {
+		GateKernelStructType() {
+			super(sft ( "Theta", dataTypeFix32),
+			sft ( "Phi", dataTypeFix32),
+			sft ( "Lambda", dataTypeFix32),
+			sft("TargetQubit", dfeUInt(4)),
+			sft ( "ControlQubit", dfeUInt(4)),
+			sft ( "GateType", dfeUInt(8)),
+			sft ( "deriv", dfeUInt(3)));
+		}
+	}
+
+	GateKernelStructType DFEstructType = new GateKernelStructType();
 
 
+/**
+@brief ????????????
+@return ??????????
+*/
 	DFEVar shiftLeft(long value, DFEVar shift, int bits ) {
 
 		List<DFEVar> values = new ArrayList<DFEVar>();
@@ -39,17 +68,26 @@ public class qgdDFEKernel extends Kernel {
 	}
 
 
+/**
+@brief ????????????
+@return ??????????
+*/
 	public qgdDFEKernel(final KernelParameters parameters, int dimMax) {
 		super(parameters);
 
 		// Input
 		final DFEComplex x = io.input("x", cplxTypeFix32);
 
-		DFEVar controlQubit = io.scalarInput("controlQubit", dfeUInt(4) );
-		DFEVar targetQubit  = io.scalarInput("targetQubit",  dfeUInt(4));
 		DFEVar dim          = io.scalarInput("dim", dfeUInt(11) );
 
-		DFEVar indexStepControl = shiftLeft( 1, controlQubit, 11 );
+
+		DFEVar inputControllerCounter = control.count.simpleCounter(32);
+		final DFEStruct gate = io.input("gates", DFEstructType, inputControllerCounter===0);
+
+		DFEVar controlQubit = gate["ControlQubit"];
+		DFEVar targetQubit  = gate["TargetQubit"];
+
+		DFEVar indexStepControl = shiftLeft( 1, controlQubit, 11 ); // will need for controlled gates
 		DFEVar indexStepTarget = shiftLeft( 1, targetQubit, 11 );
 //debug.simPrintf("target : %d, %d\n", targetQubit, indexStepTarget);
 //debug.simPrintf("control : %d, %d\n", controlQubit, indexStepControl);
@@ -58,19 +96,24 @@ public class qgdDFEKernel extends Kernel {
 		IndexGenSM.connectInput("indexStepTarget", indexStepTarget);
 		IndexGenSM.connectInput("dim", dim);
 
-DFEVar indexCounter        = IndexGenSM.getOutput("indexCounter");
+DFEVar indexCounter        = IndexGenSM.getOutput("indexCounter"); // will need for controlled gates
 DFEVar targetState        = IndexGenSM.getOutput("targetState");
 
 DFEVar indexCounterPair    = targetState ? -indexStepTarget.cast(dfeInt(11)) : indexStepTarget.cast(dfeInt(11));//IndexGenSM.getOutput("indexCounterPair");
+for ( int idx=0; idx<12; idx++ ) {
+	targetState = optimization.pipeline( targetState );
+}
 
 //debug.simPrintf("indexCounters: %d, %d, target state: %d, indexStepTarget: %d\n", indexCounter, indexCounterPair, targetState, indexStepTarget);
 //debug.simPrintf("indexCounters: %d\n", indexCounterPair);
 
-		//DFEComplex stream_0 = x;//stream.offset(x, indexCounter-1, 0, dimMax/2);
-		DFEComplex stream_1 = stream.offset(x, indexCounterPair, -dimMax/2, dimMax/2);
+		DFEComplex x_offset = stream.offset(x, indexCounterPair, -dimMax/2, dimMax/2);
 
 
-		DFEComplex y = stream_1;
+ 		DFEVar sqrt2_over_2 = constant.var( dataTypeFix32, 0.707106781); // sqrt(2)/2
+
+                // if targetState === 1 than .... otherwise .... 
+		DFEComplex y = targetState ?  x_offset*sqrt2_over_2 - x*sqrt2_over_2 : x*sqrt2_over_2 + x_offset*sqrt2_over_2;
 //debug.simPrintf("indexCounters: %f, %f\n", x.getReal(), y.getReal());
 
 

@@ -1,0 +1,92 @@
+package qgddfe;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.Kernel;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelParameters;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEType;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEFix.SignMode;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEComplex;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEComplexType;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelBase;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStructType;
+
+//import java.util.ArrayList;
+//import java.util.List;
+
+/**
+@brief ????????????
+@return ??????????
+*/
+public class GateKernelGeneratorKernel extends Kernel {
+
+	DFEType dataTypeFix32            = dfeFixOffset(32, -31, SignMode.TWOSCOMPLEMENT);
+	DFEComplexType cplxTypeFix32     = new DFEComplexType(dataTypeFix32);
+
+/**
+@brief ????????????
+@return ??????????
+*/
+	// class to store elementary data of a gate operation
+	class GateKernelStructTypeCPU extends DFEStructType {
+		GateKernelStructTypeCPU() {
+			super(sft ( "Theta", dataTypeFix32),
+			sft ( "Phi", dataTypeFix32),
+			sft ( "Lambda", dataTypeFix32),
+			sft("TargetQubit", dfeUInt(8)),
+			sft ( "ControlQubit", dfeUInt(8)),
+			sft ( "GateType", dfeUInt(8)),
+			sft ( "padding", dfeUInt(8)));
+		}
+	}
+
+/**
+@brief ????????????
+@return ??????????
+*/
+	// class to store elementary data of a gate operation
+	class GateKernelStructType extends DFEStructType {
+		GateKernelStructType() {
+			super(sft ( "Theta", dataTypeFix32),
+			sft ( "Phi", dataTypeFix32),
+			sft ( "Lambda", dataTypeFix32),
+			sft(  "TargetQubit", dfeUInt(4)),
+			sft ( "ControlQubit", dfeUInt(4)),
+			sft ( "GateType", dfeUInt(8)),
+			sft ( "deriv", dfeUInt(3)));
+		}
+	}
+
+	GateKernelStructTypeCPU CPUstructType = new GateKernelStructTypeCPU();
+	GateKernelStructType DFEstructType = new GateKernelStructType();
+
+
+
+/**
+@brief ????????????
+@return ??????????
+*/
+	public GateKernelGeneratorKernel(final KernelParameters parameters, int dimMax) {
+		super(parameters);
+
+		// Input
+		final DFEStruct gatesCPU = io.input("gatesCPU", CPUstructType);
+
+		DFEStruct gates = DFEstructType.newInstance(this);
+
+                gates["TargetQubit"] =  gatesCPU["TargetQubit"].cast(dfeUInt(4));
+                gates["ControlQubit"] =  gatesCPU["ControlQubit"].cast(dfeUInt(4));
+                gates["GateType"] =  gatesCPU["GateType"].cast(dfeUInt(8));
+                gates["Theta"] =  gatesCPU["Theta"];
+                gates["Phi"] =  gatesCPU["Phi"];
+                gates["Lambda"] =  gatesCPU["Lambda"];
+		gates["deriv"] = constant.var( dfeUInt(3), 0); 
+
+
+		// Output
+		io.output("gatesDFE", gates, DFEstructType);
+	}
+
+}

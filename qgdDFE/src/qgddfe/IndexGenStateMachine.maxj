@@ -13,6 +13,10 @@ import com.maxeler.maxcompiler.v2.statemachine.DFEsmOutput;
 import com.maxeler.maxcompiler.v2.statemachine.DFEsmStateValue;
 import com.maxeler.maxcompiler.v2.statemachine.kernel.KernelStateMachine;
 
+/**
+@brief ????????????
+@return ??????????
+*/
 class IndexGenStateMachine extends KernelStateMachine {
 	enum Modes {
 		COUNTING_UP, HOLD_COUNT, COUNTING_DOWN

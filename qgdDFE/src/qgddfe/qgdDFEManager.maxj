@@ -17,12 +17,20 @@ import com.maxeler.platform.max5.manager.BuildConfig;
 
 import com.maxeler.platform.max5.manager.XilinxAlveoU250Manager;;
 
+/**
+@brief ????????????
+@return ??????????
+*/
 public class qgdDFEManager extends XilinxAlveoU250Manager {
 
 	int dim = 1024;
 	int dim_over_2 = dim/2;
 
 
+/**
+@brief ????????????
+@return ??????????
+*/
 	public qgdDFEManager(EngineParameters params) {
 		super(params);
 		
@@ -56,16 +64,25 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 		tocpu <== lmem2cpu;		
 
                 /////////////////// Computing kernels ///////////////////////
+
+
+		final KernelBlock gateKernel = addKernel(new GateKernelGeneratorKernel(makeKernelParameters("GateKernelGeneratorKernel"), dim));
+		assignToNamedRegion(gateKernel, XilinxAlveoU250Manager.NamedRegion.SLR0);
+
+
+		DFELink gatesFromCPU = addStreamFromCPU("gatesfromcpu");
+		gateKernel.getInput("gatesCPU") <== gatesFromCPU;
            
 
 		final KernelBlock kernel = addKernel(new qgdDFEKernel(makeKernelParameters("qgdDFEKernel"), dim));
 		assignToNamedRegion(kernel, XilinxAlveoU250Manager.NamedRegion.SLR0);
 
 
+		kernel.getInput("gates") <== gateKernel.getOutput("gatesDFE");
+		
 
 
-
-               // DFELink inA = iface.addStreamFromLMem("inA", LMemCommandGroup.MemoryAccessPattern.LINEAR_1D);
+                // DFELink inA = iface.addStreamFromLMem("inA", LMemCommandGroup.MemoryAccessPattern.LINEAR_1D);
 		DFELink inA = iface.addStreamFromLMem("inA", mcg_fromlmem_kernel.getOutput("cmdStream"));
 
 		//final DFELink x = addStreamFromCPU("x");
@@ -97,8 +114,6 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 		InterfaceParam targetQubit  = ei.addParam("targetQubit", CPUTypes.INT32);
 		InterfaceParam dim  = ei.addParam("dim", CPUTypes.INT32);
 
-		ei.setScalar("qgdDFEKernel", "controlQubit", controlQubit);
-		ei.setScalar("qgdDFEKernel", "targetQubit", targetQubit);
 		ei.setScalar("qgdDFEKernel", "dim", dim);
 
                 // the overall size of the matrix
@@ -122,6 +137,8 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 		ei.setScalar("ToLMEMCommGenKernel", "chunkNum", chunks);
 		ei.setScalar("ToLMEMCommGenKernel", "burstNum", burstNum);
 		ei.setScalar("ToLMEMCommGenKernel", "addrOffset", burstNum);
+
+		//ei.setTicks("paramKernel", ei.addConstant(1l));
 
 		ei.setTicks("FromLMEMCommGenKernel", ticksMax);
 		ei.setTicks("ToLMEMCommGenKernel", ticksMax);
@@ -183,6 +200,7 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 		ei.setTicks("FromLMEMCommGenKernel", zero);
 		ei.setTicks("ToLMEMCommGenKernel", zero);
 		ei.setTicks("qgdDFEKernel", zero);
+		ei.setTicks("GateKernelGeneratorKernel", zero);
 
 		ei.setLMemInterruptOn("cpu2lmem");
 
@@ -231,6 +249,7 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 		ei.setTicks("FromLMEMCommGenKernel", zero);
 		ei.setTicks("ToLMEMCommGenKernel", zero);
 		ei.setTicks("qgdDFEKernel", zero);
+		ei.setTicks("GateKernelGeneratorKernel", zero);
 
                 ei.setLMemInterruptOn("lmem2cpu");
 

@@ -13,6 +13,10 @@ import com.maxeler.maxcompiler.v2.statemachine.DFEsmOutput;
 import com.maxeler.maxcompiler.v2.statemachine.DFEsmStateValue;
 import com.maxeler.maxcompiler.v2.statemachine.kernel.KernelStateMachine;
 
+/**
+@brief ????????????
+@return ??????????
+*/
 class MemCommandGenStateMachine extends KernelStateMachine {
 	enum Modes {
 		COUNTING_UP, HOLD_COUNT, COUNTING_DOWN
@@ -33,6 +37,10 @@ class MemCommandGenStateMachine extends KernelStateMachine {
 	private final DFEsmStateValue issueMemCommand;
 
 
+/**
+@brief ????????????
+@return ??????????
+*/
 	public MemCommandGenStateMachine(KernelLib owner) {
 		super(owner);
 
