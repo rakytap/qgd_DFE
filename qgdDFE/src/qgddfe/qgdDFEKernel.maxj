@@ -41,9 +41,9 @@ public class qgdDFEKernel extends Kernel {
 		GateKernelStructType() {
 			super(sft ( "KernelMatrix", kernelMatrixType ),
 			sft("TargetQubit", dfeUInt(4)),
-			sft ( "ControlQubit", dfeUInt(4)),
+			sft ( "ControlQubit", dfeInt(5)),
 			sft ( "GateType", dfeUInt(8)),
-			sft ( "deriv", dfeUInt(3)));
+			sft ( "deriv", dfeUInt(1)));
 		}
 	}
 
@@ -82,15 +82,18 @@ public class qgdDFEKernel extends Kernel {
 		final DFEComplex x = io.input("x", cplxTypeFix32);
 
 		DFEVar dim          = io.scalarInput("dim", dfeUInt(11) );
+		DFEVar elementNum   = io.scalarInput("elementNum", dfeUInt(32) );
 
 
-		DFEVar inputControllerCounter = control.count.simpleCounter(32);
+		DFEVar inputControllerCounter = control.count.simpleCounter(32, elementNum);
 		final DFEStruct gate = io.input("gates", DFEstructType, inputControllerCounter===0);
 
 		DFEVar controlQubit = gate["ControlQubit"];
 		DFEVar targetQubit  = gate["TargetQubit"];
 
-		DFEVar indexStepControl = shiftLeft( 1, controlQubit, 11 ); // will need for controlled gates
+		DFEVar useControlQubit = controlQubit >= 0;
+
+		DFEVar indexStepControl = useControlQubit ? shiftLeft( 1, controlQubit.cast(dfeUInt(4)), 11 ) : constant.var( dfeUInt(11), 0); // will need for controlled gates
 		DFEVar indexStepTarget = shiftLeft( 1, targetQubit, 11 );
 //debug.simPrintf("target : %d, %d\n", targetQubit, indexStepTarget);
 //debug.simPrintf("control : %d, %d\n", controlQubit, indexStepControl);
@@ -98,12 +101,12 @@ public class qgdDFEKernel extends Kernel {
 
 		SMIO IndexGenSM = addStateMachine("IndexGenSM", new IndexGenStateMachine( this));
 		IndexGenSM.connectInput("indexStepTarget", indexStepTarget);
-		IndexGenSM.connectInput("dim", dim);
+		IndexGenSM.connectInput("dim", dim-1);
 
-DFEVar indexCounter        = IndexGenSM.getOutput("indexCounter"); // will need for controlled gates
-DFEVar targetState         = IndexGenSM.getOutput("targetState");
+		DFEVar indexCounter        = IndexGenSM.getOutput("indexCounter"); // will need for controlled gates
+		DFEVar targetState         = IndexGenSM.getOutput("targetState");
 
-DFEVar indexCounterPair    = targetState ? -indexStepTarget.cast(dfeInt(11)) : indexStepTarget.cast(dfeInt(11));//IndexGenSM.getOutput("indexCounterPair");
+		DFEVar indexCounterPair    = targetState ? -indexStepTarget.cast(dfeInt(11)) : indexStepTarget.cast(dfeInt(11));//IndexGenSM.getOutput("indexCounterPair");
 for ( int idx=0; idx<12; idx++ ) {
 	targetState = optimization.pipeline( targetState );
 }
@@ -120,7 +123,17 @@ for ( int idx=0; idx<12; idx++ ) {
  		//DFEVar sqrt2_over_2 = constant.var( dataTypeFix32, 0.707106781); // sqrt(2)/2
 
                 // if targetState === 1 than .... otherwise .... 
-		DFEComplex y = targetState ?  x_offset*kernelMatrix[2] + x*kernelMatrix[3] : x*kernelMatrix[0] + x_offset*kernelMatrix[1];
+
+
+
+
+		DFEComplex transformedAmplitude = (targetState) ?  x_offset*kernelMatrix[2] + x*kernelMatrix[3] : x*kernelMatrix[0] + x_offset*kernelMatrix[1];
+
+		DFEVar ControlQubitState = useControlQubit ? ((indexStepControl & indexCounter) > 0) : constant.var( dfeUInt(1), 1);
+		DFEComplex y = ControlQubitState ?  transformedAmplitude : x;
+//debug.simPrintf("%d ControlQubit: %d, %d\n", indexCounter, useControlQubit, ControlQubitState);
+
+
 //debug.simPrintf("elements: %f, %f\n", x.getReal(), y.getReal());
 
 

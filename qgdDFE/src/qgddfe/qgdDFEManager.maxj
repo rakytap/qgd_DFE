@@ -117,6 +117,7 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 		InterfaceParam gatesNum     = ei.addParam("gatesNum", CPUTypes.INT16);
 
 		ei.setScalar("qgdDFEKernel", "dim", dim);
+		ei.setScalar("qgdDFEKernel", "elementNum", dim*dim);
 
                 // the overall size of the matrix
 		InterfaceParam sizeInBytes = size * 2*CPUTypes.FLOAT.sizeInBytes();

@@ -42,7 +42,7 @@ public class GateKernelGeneratorKernel extends Kernel {
 			sft ( "Phi", parameterTypeFix32),
 			sft ( "Lambda", parameterTypeFix32),
 			sft("TargetQubit", dfeUInt(8)),
-			sft ( "ControlQubit", dfeUInt(8)),
+			sft ( "ControlQubit", dfeInt(8)),
 			sft ( "GateType", dfeUInt(8)),
 			sft ( "padding", dfeUInt(8)));
 		}
@@ -57,9 +57,9 @@ public class GateKernelGeneratorKernel extends Kernel {
 		GateKernelStructType() {
 			super(sft ( "KernelMatrix", kernelMatrixType),
 			sft(  "TargetQubit", dfeUInt(4)),
-			sft ( "ControlQubit", dfeUInt(4)),
+			sft ( "ControlQubit", dfeInt(5)),
 			sft ( "GateType", dfeUInt(8)),
-			sft ( "deriv", dfeUInt(3)));
+			sft ( "deriv", dfeUInt(1)));
 		}
 	}
 
@@ -125,8 +125,8 @@ public class GateKernelGeneratorKernel extends Kernel {
 		TargetQubit = TargetQubit.cast(dfeUInt(4));
 
 		DFEVar ControlQubit = gatesCPU["ControlQubit"];
-		ControlQubit = ControlQubit.cast(dfeUInt(4));
-
+		ControlQubit = ControlQubit.cast(dfeInt(5));
+debug.simPrintf("control : %d\n", ControlQubit);
 		DFEVar GateType = gatesCPU["GateType"];
 /*
 		for (int idx=0; idx<44; idx++) {
@@ -154,7 +154,7 @@ debug.simPrintf("kernelMatrix: %f, %f\n", kernelMatrix[3].getReal(), kernelMatri
                 gates["ControlQubit"] =  ControlQubit;
                 gates["GateType"] =  GateType;
                 gates["KernelMatrix"] =  kernelMatrix;
-		gates["deriv"] = constant.var( dfeUInt(3), 0); 
+		gates["deriv"] = constant.var( dfeUInt(1), 0); 
 
 
 		// Output

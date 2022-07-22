@@ -49,7 +49,7 @@ class IndexGenStateMachine extends KernelStateMachine {
 
 
 		// State
-		indexCounter        = state.value(dfeUInt(11), 1);
+		indexCounter        = state.value(dfeUInt(11), 0);
 		indexCounterWrapped = state.value(dfeUInt(11), 1);
 		targetState         = state.value(dfeUInt(1), 0);
 
@@ -64,7 +64,7 @@ class IndexGenStateMachine extends KernelStateMachine {
 			}
 
 		} ELSE {
-			indexCounter.next        <== 1;
+			indexCounter.next        <== 0;
 			indexCounterWrapped.next <== 1;
 			targetState.next         <== 0;
 		}
