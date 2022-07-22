@@ -12,6 +12,9 @@ import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEComplexType;
 import com.maxeler.maxcompiler.v2.kernelcompiler.KernelBase;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStructType;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEVector;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEVectorType;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.KernelMath;
 
 //import java.util.ArrayList;
 //import java.util.List;
@@ -22,8 +25,11 @@ import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStructType;
 */
 public class GateKernelGeneratorKernel extends Kernel {
 
-	DFEType dataTypeFix32            = dfeFixOffset(32, -31, SignMode.TWOSCOMPLEMENT);
+	DFEType dataTypeFix32            = dfeFixOffset(32, -30, SignMode.TWOSCOMPLEMENT);
+	DFEType parameterTypeFix32       = dfeFixOffset(32, -25, SignMode.TWOSCOMPLEMENT);
 	DFEComplexType cplxTypeFix32     = new DFEComplexType(dataTypeFix32);
+
+	DFEVectorType<DFEComplex> kernelMatrixType = new DFEVectorType<DFEComplex>(cplxTypeFix32, 4);
 
 /**
 @brief ????????????
@@ -32,9 +38,9 @@ public class GateKernelGeneratorKernel extends Kernel {
 	// class to store elementary data of a gate operation
 	class GateKernelStructTypeCPU extends DFEStructType {
 		GateKernelStructTypeCPU() {
-			super(sft ( "Theta", dataTypeFix32),
-			sft ( "Phi", dataTypeFix32),
-			sft ( "Lambda", dataTypeFix32),
+			super(sft ( "Theta", parameterTypeFix32),
+			sft ( "Phi", parameterTypeFix32),
+			sft ( "Lambda", parameterTypeFix32),
 			sft("TargetQubit", dfeUInt(8)),
 			sft ( "ControlQubit", dfeUInt(8)),
 			sft ( "GateType", dfeUInt(8)),
@@ -49,9 +55,7 @@ public class GateKernelGeneratorKernel extends Kernel {
 	// class to store elementary data of a gate operation
 	class GateKernelStructType extends DFEStructType {
 		GateKernelStructType() {
-			super(sft ( "Theta", dataTypeFix32),
-			sft ( "Phi", dataTypeFix32),
-			sft ( "Lambda", dataTypeFix32),
+			super(sft ( "KernelMatrix", kernelMatrixType),
 			sft(  "TargetQubit", dfeUInt(4)),
 			sft ( "ControlQubit", dfeUInt(4)),
 			sft ( "GateType", dfeUInt(8)),
@@ -74,14 +78,82 @@ public class GateKernelGeneratorKernel extends Kernel {
 		// Input
 		final DFEStruct gatesCPU = io.input("gatesCPU", CPUstructType);
 
+		DFEVector<DFEComplex> kernelMatrix = kernelMatrixType.newInstance(this);
+
+		DFEVar Theta = gatesCPU["Theta"];
+
+		DFEVar ThetaOver2 = constant.var( dfeInt(1), 0).cat( Theta.slice(1, 31) );
+		ThetaOver2 = ThetaOver2.reinterpret(parameterTypeFix32);
+
+		DFEVar cosTheta = KernelMath.cos( ThetaOver2  ).cast(dataTypeFix32);
+		DFEVar sinTheta = KernelMath.sin( ThetaOver2  ).cast(dataTypeFix32);
+
+		DFEVar Lambda = gatesCPU["Lambda"];
+		DFEVar cosLambda = KernelMath.cos( Lambda  ).cast(dataTypeFix32);
+		DFEVar sinLambda = KernelMath.sin( Lambda  ).cast(dataTypeFix32);
+
+		DFEVar Phi    = gatesCPU["Phi"];
+		DFEVar cosPhi = KernelMath.cos( Phi  ).cast(dataTypeFix32);
+		DFEVar sinPhi = KernelMath.sin( Phi  ).cast(dataTypeFix32);
+
+		DFEVar cosPhiLambda = KernelMath.cos( Phi+Lambda  ).cast(dataTypeFix32);
+		DFEVar sinPhiLambda = KernelMath.sin( Phi+Lambda  ).cast(dataTypeFix32);
+
+
+
+		kernelMatrix[1].setReal( -cosLambda*sinTheta );
+		kernelMatrix[1].setImaginary( -sinLambda*sinTheta );
+
+
+		//sinTheta = optimization.pipeline( sinTheta );
+		kernelMatrix[2].setReal( cosPhi*sinTheta );
+		kernelMatrix[2].setImaginary( sinPhi*sinTheta );
+
+		kernelMatrix[3].setReal( cosPhiLambda*cosTheta );
+		kernelMatrix[3].setImaginary( sinPhiLambda*cosTheta );
+		
+/*
+		for (int idx=0; idx<7; idx++) {
+			cosTheta = optimization.pipeline( cosTheta );
+		}
+*/
+		kernelMatrix[0].setReal( cosTheta );
+		kernelMatrix[0].setImaginary( constant.var( dataTypeFix32, 0) );
+
+
+		DFEVar TargetQubit = gatesCPU["TargetQubit"];
+		TargetQubit = TargetQubit.cast(dfeUInt(4));
+
+		DFEVar ControlQubit = gatesCPU["ControlQubit"];
+		ControlQubit = ControlQubit.cast(dfeUInt(4));
+
+		DFEVar GateType = gatesCPU["GateType"];
+/*
+		for (int idx=0; idx<44; idx++) {
+			TargetQubit = optimization.pipeline( TargetQubit );
+			ControlQubit = optimization.pipeline( ControlQubit );
+			GateType = optimization.pipeline( GateType );
+		}
+*/
+/*
+DFEVar tmp = KernelMath.cos( Phi  );
+tmp = tmp.cast(dataTypeFix32);
+debug.simPrintf("tt: %f\n", tmp);
+
+debug.simPrintf("tt: %f, %f\n", -cosLambda*sinTheta, -sinLambda*sinTheta);
+debug.simPrintf("tt: %f, %f, %f, %f\n", cosPhi, sinPhi, Phi, KernelMath.cos( Phi  )      );
+debug.simPrintf("tt: %f, %f\n", cosPhiLambda*cosTheta, sinPhiLambda*cosTheta);
+debug.simPrintf("kernelMatrix: %f, %f\n", kernelMatrix[0].getReal(), kernelMatrix[0].getImaginary());	
+debug.simPrintf("kernelMatrix: %f, %f\n", kernelMatrix[1].getReal(), kernelMatrix[1].getImaginary());
+debug.simPrintf("kernelMatrix: %f, %f\n", kernelMatrix[2].getReal(), kernelMatrix[2].getImaginary());
+debug.simPrintf("kernelMatrix: %f, %f\n", kernelMatrix[3].getReal(), kernelMatrix[3].getImaginary());
+*/
 		DFEStruct gates = DFEstructType.newInstance(this);
 
-                gates["TargetQubit"] =  gatesCPU["TargetQubit"].cast(dfeUInt(4));
-                gates["ControlQubit"] =  gatesCPU["ControlQubit"].cast(dfeUInt(4));
-                gates["GateType"] =  gatesCPU["GateType"].cast(dfeUInt(8));
-                gates["Theta"] =  gatesCPU["Theta"];
-                gates["Phi"] =  gatesCPU["Phi"];
-                gates["Lambda"] =  gatesCPU["Lambda"];
+                gates["TargetQubit"] =  TargetQubit;
+                gates["ControlQubit"] =  ControlQubit;
+                gates["GateType"] =  GateType;
+                gates["KernelMatrix"] =  kernelMatrix;
 		gates["deriv"] = constant.var( dfeUInt(3), 0); 
 
 

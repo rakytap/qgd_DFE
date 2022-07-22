@@ -24,6 +24,23 @@ typedef struct {
   float imag;
 } Complex8;
 
+
+/**
+ * \brief ???????????
+ * 
+ */
+typedef struct {
+	int32_t Theta;
+	int32_t Phi;
+	int32_t Lambda;
+	int8_t target_qbit;
+	int8_t control_qbit;
+	int8_t gate_type;
+	int8_t padding;
+} gate_kernel_type;
+
+
+
 /// static variable to indicate whether DFE is initialized
 static bool initialized = false;
 static max_file_t* maxfile = NULL;
@@ -89,15 +106,6 @@ printf("burst size in bytes: %d\n", max_get_burst_size(maxfile, NULL));
     return 0;
 }
 
-
-/**
- * \brief ???????????
- * 
- */
-typedef struct { 
-	char amplitude[14*2];
-	int32_t base_idx;
-} state_vector_type;
 
 
 /**
@@ -194,7 +202,7 @@ int downloadFromLMEM( Complex8* data, size_t dim ) {
  * \brief ???????????
  * 
  */
-int calcqgdKernelDFE(size_t dim, int target_qbit)
+int calcqgdKernelDFE(size_t dim, gate_kernel_type* gates, int gatesNum)
 {
 
 /*
@@ -210,17 +218,20 @@ int calcqgdKernelDFE(size_t dim, int target_qbit)
     uint32_t dataOut[SIZE];
 
     size_t element_num = dim*dim;
-int controlQubit = 0;
 //int targetQubit = 2;
 
-printf("%d, control qbit: %d, target qbit: %d\n", element_num, controlQubit, target_qbit);
+printf("%d, control qbit: %d, target qbit: %d\n", element_num, gates->control_qbit, gates->target_qbit);
+printf("size of gate_kernel_type %d bytes\n", sizeof(gate_kernel_type));
 
     qgdDFE_actions_t interface_actions;
-    interface_actions.ticks_qgdDFEKernel = element_num;
+    //interface_actions.ticks_qgdDFEKernel = element_num*2;
     interface_actions.param_element_num  = element_num;
-    interface_actions.param_controlQubit = controlQubit;
-    interface_actions.param_targetQubit  = target_qbit;
     interface_actions.param_dim = dim;
+    interface_actions.param_gatesNum = gatesNum;
+
+    interface_actions.instream_gatesfromcpu = (void*)gates;
+    interface_actions.instream_size_gatesfromcpu = sizeof(gate_kernel_type)*gatesNum;
+	
     //interface_actions.instream_x = dataIn;
     //interface_actions.instream_size_x = SIZE * sizeof dataIn[0];
     //interface_actions.outstream_y = dataOut; 
@@ -228,6 +239,7 @@ printf("%d, control qbit: %d, target qbit: %d\n", element_num, controlQubit, tar
 
 
     qgdDFE_run(	engine, &interface_actions);
+printf("gates num:%d\n", gatesNum );
 /*
     qgdDFE(
      	SIZE,

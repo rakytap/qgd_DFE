@@ -41,10 +41,10 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
                 /////////////////// CPU - LMEM communication ///////////////////////
 
                 // memory command gererator kernels (mcg)
-		final KernelBlock mcg_cpu2lmem_kernel = addKernel(new MemCommGeneratorKernel(makeKernelParameters("CPU2LMEMCommGenKernel")));
-		final KernelBlock mcg_lmem2cpu_kernel = addKernel(new MemCommGeneratorKernel(makeKernelParameters("LMEM2CPUCommGenKernel")));
-		final KernelBlock mcg_fromlmem_kernel = addKernel(new MemCommGeneratorKernel(makeKernelParameters("FromLMEMCommGenKernel")));
-		final KernelBlock mcg_tolmem_kernel   = addKernel(new MemCommGeneratorKernel(makeKernelParameters("ToLMEMCommGenKernel")));
+		final KernelBlock mcg_cpu2lmem_kernel = addKernel(new MemCommGeneratorKernel(makeKernelParameters("CPU2LMEMCommGenKernel"), 1, 0));
+		final KernelBlock mcg_lmem2cpu_kernel = addKernel(new MemCommGeneratorKernel(makeKernelParameters("LMEM2CPUCommGenKernel"), 1, 0));
+		final KernelBlock mcg_fromlmem_kernel = addKernel(new MemCommGeneratorKernel(makeKernelParameters("FromLMEMCommGenKernel"), 0, 1));
+		final KernelBlock mcg_tolmem_kernel   = addKernel(new MemCommGeneratorKernel(makeKernelParameters("ToLMEMCommGenKernel"), 1, 0));
 		assignToNamedRegion(mcg_cpu2lmem_kernel, XilinxAlveoU250Manager.NamedRegion.SLR0);
 		assignToNamedRegion(mcg_lmem2cpu_kernel, XilinxAlveoU250Manager.NamedRegion.SLR0);
 		assignToNamedRegion(mcg_fromlmem_kernel, XilinxAlveoU250Manager.NamedRegion.SLR0);
@@ -98,6 +98,7 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 		outA <== kernel.getOutput("y");
 
 
+
 	}
 	
 /**
@@ -110,9 +111,10 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 
                 // The number of comnponents in the wave-vector 
 		InterfaceParam size  = ei.addParam("element_num", CPUTypes.INT32);
-		InterfaceParam controlQubit  = ei.addParam("controlQubit", CPUTypes.INT32);
+		InterfaceParam controlQubit = ei.addParam("controlQubit", CPUTypes.INT32);
 		InterfaceParam targetQubit  = ei.addParam("targetQubit", CPUTypes.INT32);
-		InterfaceParam dim  = ei.addParam("dim", CPUTypes.INT32);
+		InterfaceParam dim          = ei.addParam("dim", CPUTypes.INT32);
+		InterfaceParam gatesNum     = ei.addParam("gatesNum", CPUTypes.INT16);
 
 		ei.setScalar("qgdDFEKernel", "dim", dim);
 
@@ -129,23 +131,29 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 
 		InterfaceParam burstNum = sizeInBytes/burstSize;
 		InterfaceParam chunks = burstSize/(CPUTypes.FLOAT.sizeInBytes()*2);
-		InterfaceParam ticksMax = burstNum*chunks;
+		InterfaceParam ticksMax = burstNum*chunks*gatesNum;
+		ei.setScalar("FromLMEMCommGenKernel", "IterationNum", gatesNum);
 		ei.setScalar("FromLMEMCommGenKernel", "chunkNum", chunks);
 		ei.setScalar("FromLMEMCommGenKernel", "burstNum", burstNum);
 		ei.setScalar("FromLMEMCommGenKernel", "addrOffset", zero);
+		ei.setScalar("FromLMEMCommGenKernel", "dynAddrOffset", burstNum);
 
+		ei.setScalar("ToLMEMCommGenKernel", "IterationNum", gatesNum);
 		ei.setScalar("ToLMEMCommGenKernel", "chunkNum", chunks);
 		ei.setScalar("ToLMEMCommGenKernel", "burstNum", burstNum);
 		ei.setScalar("ToLMEMCommGenKernel", "addrOffset", burstNum);
 
 		//ei.setTicks("paramKernel", ei.addConstant(1l));
 
+		ei.setTicks("GateKernelGeneratorKernel", gatesNum);
+		ei.setTicks("qgdDFEKernel", ticksMax);
 		ei.setTicks("FromLMEMCommGenKernel", ticksMax);
 		ei.setTicks("ToLMEMCommGenKernel", ticksMax);
 		ei.setTicks("CPU2LMEMCommGenKernel", zero);
 		ei.setTicks("LMEM2CPUCommGenKernel", zero);
 
 		ei.setLMemInterruptOn("outA");		
+		//ei.setLMemInterruptOn("inA");	
 
 
 		ei.ignoreStream("tocpu");		
@@ -153,7 +161,7 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
                 ei.ignoreLMem("cpu2lmem");
                 ei.ignoreLMem("lmem2cpu");
 
-		//ei.ignoreLMem("inA");
+		ei.ignoreLMem("inA");
 		//ei.ignoreLMem("outA");
 
                 ei.ignoreKernel("CPU2LMEMCommGenKernel");
@@ -190,6 +198,7 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 		InterfaceParam burstNum = sizeInBytes/burstSize;
 		InterfaceParam chunks = burstSize/(CPUTypes.FLOAT.sizeInBytes()*2);
 		InterfaceParam ticksMax = burstNum*chunks;
+		ei.setScalar("CPU2LMEMCommGenKernel", "IterationNum", ei.addConstant(1l));
 		ei.setScalar("CPU2LMEMCommGenKernel", "chunkNum", chunks);
 		ei.setScalar("CPU2LMEMCommGenKernel", "burstNum", burstNum);
 		ei.setScalar("CPU2LMEMCommGenKernel", "addrOffset", zero);
@@ -239,6 +248,7 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 		InterfaceParam burstNum = sizeInBytes/burstSize;
 		InterfaceParam chunks = burstSize/(CPUTypes.FLOAT.sizeInBytes()*2);
 		InterfaceParam ticksMax = burstNum*chunks;
+		ei.setScalar("LMEM2CPUCommGenKernel", "IterationNum", ei.addConstant(1l));
                 ei.setScalar("LMEM2CPUCommGenKernel", "burstNum", burstNum);
                 ei.setScalar("LMEM2CPUCommGenKernel", "addrOffset", burstNum);
                 ei.setScalar("LMEM2CPUCommGenKernel", "chunkNum", chunks);

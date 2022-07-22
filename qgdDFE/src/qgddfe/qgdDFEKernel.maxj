@@ -13,6 +13,8 @@ import com.maxeler.maxcompiler.v2.kernelcompiler.SMIO;
 import com.maxeler.maxcompiler.v2.kernelcompiler.KernelBase;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStructType;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEVector;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEVectorType;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -23,8 +25,11 @@ import java.util.List;
 */
 public class qgdDFEKernel extends Kernel {
 
-	DFEType dataTypeFix32            = dfeFixOffset(32, -31, SignMode.TWOSCOMPLEMENT);
+	DFEType dataTypeFix32            = dfeFixOffset(32, -30, SignMode.TWOSCOMPLEMENT);
+	DFEType parameterTypeFix32       = dfeFixOffset(32, -25, SignMode.TWOSCOMPLEMENT);
 	DFEComplexType cplxTypeFix32     = new DFEComplexType(dataTypeFix32);
+
+	DFEVectorType<DFEComplex> kernelMatrixType = new DFEVectorType<DFEComplex>(cplxTypeFix32, 4);
 
 
 /**
@@ -34,9 +39,7 @@ public class qgdDFEKernel extends Kernel {
 	// class to store elementary data of a gate operation
 	class GateKernelStructType extends DFEStructType {
 		GateKernelStructType() {
-			super(sft ( "Theta", dataTypeFix32),
-			sft ( "Phi", dataTypeFix32),
-			sft ( "Lambda", dataTypeFix32),
+			super(sft ( "KernelMatrix", kernelMatrixType ),
 			sft("TargetQubit", dfeUInt(4)),
 			sft ( "ControlQubit", dfeUInt(4)),
 			sft ( "GateType", dfeUInt(8)),
@@ -92,12 +95,13 @@ public class qgdDFEKernel extends Kernel {
 //debug.simPrintf("target : %d, %d\n", targetQubit, indexStepTarget);
 //debug.simPrintf("control : %d, %d\n", controlQubit, indexStepControl);
 
+
 		SMIO IndexGenSM = addStateMachine("IndexGenSM", new IndexGenStateMachine( this));
 		IndexGenSM.connectInput("indexStepTarget", indexStepTarget);
 		IndexGenSM.connectInput("dim", dim);
 
 DFEVar indexCounter        = IndexGenSM.getOutput("indexCounter"); // will need for controlled gates
-DFEVar targetState        = IndexGenSM.getOutput("targetState");
+DFEVar targetState         = IndexGenSM.getOutput("targetState");
 
 DFEVar indexCounterPair    = targetState ? -indexStepTarget.cast(dfeInt(11)) : indexStepTarget.cast(dfeInt(11));//IndexGenSM.getOutput("indexCounterPair");
 for ( int idx=0; idx<12; idx++ ) {
@@ -110,11 +114,14 @@ for ( int idx=0; idx<12; idx++ ) {
 		DFEComplex x_offset = stream.offset(x, indexCounterPair, -dimMax/2, dimMax/2);
 
 
- 		DFEVar sqrt2_over_2 = constant.var( dataTypeFix32, 0.707106781); // sqrt(2)/2
+		DFEVector<DFEComplex> kernelMatrix = gate["KernelMatrix"];
+//debug.simPrintf("kernelMatrix: %f, %f\n", kernelMatrix[3].getReal(), kernelMatrix[3].getReal());		
+
+ 		//DFEVar sqrt2_over_2 = constant.var( dataTypeFix32, 0.707106781); // sqrt(2)/2
 
                 // if targetState === 1 than .... otherwise .... 
-		DFEComplex y = targetState ?  x_offset*sqrt2_over_2 - x*sqrt2_over_2 : x*sqrt2_over_2 + x_offset*sqrt2_over_2;
-//debug.simPrintf("indexCounters: %f, %f\n", x.getReal(), y.getReal());
+		DFEComplex y = targetState ?  x_offset*kernelMatrix[2] + x*kernelMatrix[3] : x*kernelMatrix[0] + x_offset*kernelMatrix[1];
+//debug.simPrintf("elements: %f, %f\n", x.getReal(), y.getReal());
 
 
 		// Output
