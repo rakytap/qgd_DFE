@@ -38,7 +38,7 @@ public class GateKernelGeneratorKernel extends Kernel {
 	// class to store elementary data of a gate operation
 	class GateKernelStructTypeCPU extends DFEStructType {
 		GateKernelStructTypeCPU() {
-			super(sft ( "Theta", parameterTypeFix32),
+			super(sft ( "ThetaOver2", parameterTypeFix32),
 			sft ( "Phi", parameterTypeFix32),
 			sft ( "Lambda", parameterTypeFix32),
 			sft("TargetQubit", dfeUInt(8)),
@@ -80,10 +80,7 @@ public class GateKernelGeneratorKernel extends Kernel {
 
 		DFEVector<DFEComplex> kernelMatrix = kernelMatrixType.newInstance(this);
 
-		DFEVar Theta = gatesCPU["Theta"];
-
-		DFEVar ThetaOver2 = constant.var( dfeInt(1), 0).cat( Theta.slice(1, 31) );
-		ThetaOver2 = ThetaOver2.reinterpret(parameterTypeFix32);
+		DFEVar ThetaOver2 = gatesCPU["ThetaOver2"];
 
 		DFEVar cosTheta = KernelMath.cos( ThetaOver2  ).cast(dataTypeFix32);
 		DFEVar sinTheta = KernelMath.sin( ThetaOver2  ).cast(dataTypeFix32);
@@ -126,7 +123,7 @@ public class GateKernelGeneratorKernel extends Kernel {
 
 		DFEVar ControlQubit = gatesCPU["ControlQubit"];
 		ControlQubit = ControlQubit.cast(dfeInt(5));
-debug.simPrintf("control : %d\n", ControlQubit);
+//debug.simPrintf("control : %d\n", ControlQubit);
 		DFEVar GateType = gatesCPU["GateType"];
 /*
 		for (int idx=0; idx<44; idx++) {
