@@ -154,8 +154,10 @@ debug.simPrintf("kernelMatrix: %f, %f\n", kernelMatrix[3].getReal(), kernelMatri
 		gates["deriv"] = constant.var( dfeUInt(1), 0); 
 
 
-		// Output
-		io.output("gatesDFE", gates, DFEstructType);
+		// Outputs
+		for (int idx=0; idx<4; idx++) {
+			io.output("gatesDFE_"+String.valueOf(idx), gates, DFEstructType);
+		}
 	}
 
 }

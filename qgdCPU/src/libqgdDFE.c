@@ -101,7 +101,7 @@ int initialize_DFE()
     printf("Maxfile uploaded to DFE\n");
 #endif
 
-printf("burst size in bytes: %d\n", max_get_burst_size(maxfile, NULL));
+//printf("burst size in bytes: %d\n", max_get_burst_size(maxfile, NULL));
 
     return 0;
 }
@@ -134,11 +134,17 @@ int load2LMEM( Complex8* data, size_t dim ) {
     // upload data to DFE LMEM
     qgdDFE_writeLMem_actions_t interface_actions;
     interface_actions.param_element_num = 2*element_num;
-    interface_actions.instream_fromcpu = (void*)data_fix;
+    interface_actions.instream_fromcpu_0 = (void*)data_fix;
+    interface_actions.instream_fromcpu_1 = (void*)data_fix;
+    interface_actions.instream_fromcpu_2 = (void*)data_fix;
+    interface_actions.instream_fromcpu_3 = (void*)data_fix;     
 
     qgdDFE_writeLMem_run( engine, &interface_actions);
 
     free( data_fix );
+ //   free( data_fix_1 );
+ //   free( data_fix_2 );
+ //   free( data_fix_3 );            
 
 
 //#ifdef DEBUG
@@ -155,7 +161,7 @@ int load2LMEM( Complex8* data, size_t dim ) {
  * \brief ???????????
  * 
  */
-int downloadFromLMEM( Complex8* data, size_t dim ) {
+int downloadFromLMEM( Complex8** data, size_t dim ) {
 
     // test whether the DFE engine can be initialized
     if ( initialize_DFE() ) {
@@ -167,25 +173,36 @@ int downloadFromLMEM( Complex8* data, size_t dim ) {
 
     // cast fix point to floats
     // convert data to fixpoint number representation into (0,31) and a sign bit
-    int32_t* data_fix = (int32_t*)malloc( 2*element_num*sizeof(int32_t) );
+    int32_t** data_fix[4];
+    for( size_t idx=0; idx<4; idx++) {
+        data_fix[idx] = (int32_t*)malloc( 2*element_num*sizeof(int32_t) );
+    }     
 
 
     // download data from DFE LMEM
     qgdDFE_readLMem_actions_t interface_actions;
     interface_actions.param_element_num = 2*element_num;
-    interface_actions.outstream_tocpu = (void*)data_fix;
+    interface_actions.outstream_tocpu_0 = (void*)data_fix[0];
+    interface_actions.outstream_tocpu_1 = (void*)data_fix[1];
+    interface_actions.outstream_tocpu_2 = (void*)data_fix[2];
+    interface_actions.outstream_tocpu_3 = (void*)data_fix[3];            
 
     qgdDFE_readLMem_run( engine, &interface_actions);
 
-    for (size_t row_idx=0; row_idx<dim; row_idx++) {
-        for (size_t col_idx=0; col_idx<dim; col_idx++) {
-            data[row_idx*dim+col_idx].real = ((float)data_fix[2*(col_idx*dim+row_idx)]/(1<<30));
-            data[row_idx*dim+col_idx].imag = ((float)data_fix[2*(col_idx*dim+row_idx)+1]/(1<<30));
+    for( size_t idx=0; idx<4; idx++) {
+        Complex8* data_loc = data[idx];
+        int32_t* data_fix_loc = data_fix[idx];        
+        for (size_t row_idx=0; row_idx<dim; row_idx++) {
+            for (size_t col_idx=0; col_idx<dim; col_idx++) {
+                data_loc[row_idx*dim+col_idx].real = ((float)data_fix_loc[2*(col_idx*dim+row_idx)]/(1<<30));
+                data_loc[row_idx*dim+col_idx].imag = ((float)data_fix_loc[2*(col_idx*dim+row_idx)+1]/(1<<30));
+            }
         }
     }
 
-
-    free( data_fix );
+    for( size_t idx=0; idx<4; idx++) {
+        free( data_fix[idx] );
+    }            
 
 //#ifdef DEBUG
     printf("Data downloaded from DFE LMEM\n");
