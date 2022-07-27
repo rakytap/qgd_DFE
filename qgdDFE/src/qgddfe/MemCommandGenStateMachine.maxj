@@ -44,7 +44,7 @@ class MemCommandGenStateMachine extends KernelStateMachine {
 @brief ????????????
 @return ??????????
 */
-	public MemCommandGenStateMachine(KernelLib owner) {
+	public MemCommandGenStateMachine(KernelLib owner, int burstCountOneShot) {
 		super(owner);
 
 		// I/O
@@ -79,12 +79,12 @@ class MemCommandGenStateMachine extends KernelStateMachine {
 			}
 			ELSE {
 
-                       		IF ( burstCounterWrapped < 255 ) {
+                       		IF ( burstCounterWrapped < burstCountOneShot ) {
 					burstCounterWrapped.next <== burstCounterWrapped + 1;
 					issueMemCommand.next <== 0;
 				} ELSE {
 					burstCounterWrapped.next <== 1;				
-		                        //burstCounter.next <== burstCounter + 255;
+		                        //burstCounter.next <== burstCounter + burstCountOneShot;
 					issueMemCommand.next <== 1;
 				
 				}

@@ -17,11 +17,14 @@ import com.maxeler.maxcompiler.v2.utils.Bits;
 public class MemCommGeneratorKernel extends Kernel {
 
 
+	
+
+
 /**
 @brief ????????????
 @return ??????????
 */
-	public MemCommGeneratorKernel(final KernelParameters parameters, int send_interrupt_signal, int dynamic_address_offset) {
+	public MemCommGeneratorKernel(final KernelParameters parameters, int send_interrupt_signal, int dynamic_address_offset, int burstCountOneShot) {
 		super(parameters);
 
 		DFEVar IterationNum = io.scalarInput("IterationNum", dfeUInt(16) );		
@@ -38,7 +41,7 @@ public class MemCommGeneratorKernel extends Kernel {
 		}
 
 
-		SMIO MCGSM = addStateMachine("MCG", new MemCommandGenStateMachine( this));
+		SMIO MCGSM = addStateMachine("MCG", new MemCommandGenStateMachine( this, burstCountOneShot));
 		MCGSM.connectInput("chunkNum", chunkNum);
 		MCGSM.connectInput("burstNum", burstNum);
 
@@ -61,14 +64,14 @@ public class MemCommGeneratorKernel extends Kernel {
 		
 		DFEVar interruptSignal;
 		if ( send_interrupt_signal == 1 ) {
-			interruptSignal = (burstNum_remained <= 255) & (iterationCounter === IterationNum); 
+			interruptSignal = (burstNum_remained <= burstCountOneShot) & (iterationCounter === IterationNum); 
 		}
 		else {
 			interruptSignal = constant.var(dfeUInt(1), 0);
 		}
 		DFEVar burstNum_remained8 = burstNum_remained.cast( dfeUInt(8) );
 		burstNum_remained8 = optimization.pipeline( burstNum_remained8 );
-		DFEVar burstNum2issue  = (burstNum_remained <= 255) ? burstNum_remained8 : constant.var(dfeUInt(8), 255);
+		DFEVar burstNum2issue  = (burstNum_remained <= burstCountOneShot) ? burstNum_remained8 : constant.var(dfeUInt(8), burstCountOneShot);
 
 		interruptSignal = optimization.pipeline( interruptSignal );
 /*
@@ -81,18 +84,18 @@ debug.simPrintf("interruptSignal: %d, %d, %d, %d, %d, %d\n", interruptSignal, it
 		// Memory controller ticks
 		CounterChain chain = control.count.makeCounterChain();
 		DFEVar memCommandCount = chain.addCounter(10000, 1);
-		DFEVar burstCount = chain.addCounter(255, 1);
+		DFEVar burstCount = chain.addCounter(burstCountOneShot, 1);
 		DFEVar chunkCount = chain.addCounter(chunkNum, 1);
 
 		DFEVar issueMemCommand = burstCount === 0 & chunkCount === 0;
 
 
-		DFEVar burstNumIssued  = constant.var(dfeUInt(32), 255)*memCommandCount.cast(dfeUInt(32));
+		DFEVar burstNumIssued  = constant.var(dfeUInt(32), burstCountOneShot)*memCommandCount.cast(dfeUInt(32));
 		DFEVar burstNum_tmp    = burstNum - burstNumIssued;
-		DFEVar interruptSignal = burstNum_tmp <= 255;
+		DFEVar interruptSignal = burstNum_tmp <= burstCountOneShot;
 		DFEVar burstNum_tmp8 = burstNum_tmp.cast( dfeUInt(8) );
 		burstNum_tmp8 = optimization.pipeline( burstNum_tmp8 );
-		DFEVar burstNum2issue  = interruptSignal ? burstNum_tmp8 : constant.var(dfeUInt(8), 255);
+		DFEVar burstNum2issue  = interruptSignal ? burstNum_tmp8 : constant.var(dfeUInt(8), burstCountOneShot);
 
 		burstNumIssued  = optimization.pipeline( burstNumIssued );
 		burstNumIssued  = optimization.pipeline( burstNumIssued );

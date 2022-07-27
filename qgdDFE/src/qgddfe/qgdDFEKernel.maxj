@@ -42,7 +42,6 @@ public class qgdDFEKernel extends Kernel {
 			super(sft ( "KernelMatrix", kernelMatrixType ),
 			sft("TargetQubit", dfeUInt(4)),
 			sft ( "ControlQubit", dfeInt(5)),
-			sft ( "GateType", dfeUInt(8)),
 			sft ( "deriv", dfeUInt(1)));
 		}
 	}
@@ -75,11 +74,11 @@ public class qgdDFEKernel extends Kernel {
 @brief ????????????
 @return ??????????
 */
-	public qgdDFEKernel(final KernelParameters parameters, int dimMax) {
+	public qgdDFEKernel(final KernelParameters parameters, int dimMax, int gate_idx) {
 		super(parameters);
 
 		// Input
-		final DFEComplex x = io.input("x", cplxTypeFix32);
+		DFEComplex x = io.input("x", cplxTypeFix32);
 
 		DFEVar dim          = io.scalarInput("dim", dfeUInt(11) );
 		DFEVar elementNum   = io.scalarInput("elementNum", dfeUInt(32) );
@@ -95,7 +94,7 @@ public class qgdDFEKernel extends Kernel {
 
 		DFEVar indexStepControl = useControlQubit ? shiftLeft( 1, controlQubit.cast(dfeUInt(4)), 11 ) : constant.var( dfeUInt(11), 0); // will need for controlled gates
 		DFEVar indexStepTarget = shiftLeft( 1, targetQubit, 11 );
-//debug.simPrintf("target : %d, %d\n", targetQubit, indexStepTarget);
+//debug.simPrintf("gate_idx: %d, %d, target :%d, %d\n", gate_idx, inputControllerCounter, targetQubit, indexStepTarget);
 //debug.simPrintf("control : %d, %d\n", controlQubit, indexStepControl);
 
 
@@ -130,6 +129,13 @@ for ( int idx=0; idx<12; idx++ ) {
 		DFEComplex transformedAmplitude = (targetState) ?  x_offset*kernelMatrix[2] + x*kernelMatrix[3] : x*kernelMatrix[0] + x_offset*kernelMatrix[1];
 
 		DFEVar ControlQubitState = useControlQubit ? ((indexStepControl & indexCounter) > 0) : constant.var( dfeUInt(1), 1);
+
+		DFEVar deriv = gate["deriv"];
+		DFEComplex zero = cplxTypeFix32.newInstance( this );
+		zero.setReal( constant.var( dataTypeFix32, 0.0) );
+		zero.setImaginary( constant.var( dataTypeFix32, 0.0) );
+
+		x = deriv ? zero : x;
 		DFEComplex y = ControlQubitState ?  transformedAmplitude : x;
 //debug.simPrintf("%d ControlQubit: %d, %d\n", indexCounter, useControlQubit, ControlQubitState);
 

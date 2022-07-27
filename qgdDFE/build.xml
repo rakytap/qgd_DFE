@@ -59,6 +59,7 @@
 		</condition>
 	</fail>
 	<path id="maxcompiler.classpath">
+		<pathelement location="${env.HOME}/MaxCompilerFix" />
 		<pathelement location="${env.MAXCOMPILERDIR}/lib/Max4Platform.jar" />
 		<pathelement location="${env.MAXCOMPILERDIR}/lib/Max5Platform.jar" />
 		<pathelement location="${env.MAXCOMPILERDIR}/lib/GenericIPPlatform.jar" />

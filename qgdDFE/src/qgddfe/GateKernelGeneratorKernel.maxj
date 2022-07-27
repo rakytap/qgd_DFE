@@ -58,7 +58,6 @@ public class GateKernelGeneratorKernel extends Kernel {
 			super(sft ( "KernelMatrix", kernelMatrixType),
 			sft(  "TargetQubit", dfeUInt(4)),
 			sft ( "ControlQubit", dfeInt(5)),
-			sft ( "GateType", dfeUInt(8)),
 			sft ( "deriv", dfeUInt(1)));
 		}
 	}
@@ -72,7 +71,7 @@ public class GateKernelGeneratorKernel extends Kernel {
 @brief ????????????
 @return ??????????
 */
-	public GateKernelGeneratorKernel(final KernelParameters parameters, int dimMax) {
+	public GateKernelGeneratorKernel(final KernelParameters parameters, int dimMax, int chainedGatesNum) {
 		super(parameters);
 
 		// Input
@@ -117,6 +116,9 @@ public class GateKernelGeneratorKernel extends Kernel {
 		kernelMatrix[0].setReal( cosTheta );
 		kernelMatrix[0].setImaginary( constant.var( dataTypeFix32, 0) );
 
+		// extract the boolen for derivation encoded in the most significant bit of the target bit
+		DFEVar deriv = gatesCPU["TargetQubit"];
+		deriv = deriv.slice(7).cast(dfeUInt(1));
 
 		DFEVar TargetQubit = gatesCPU["TargetQubit"];
 		TargetQubit = TargetQubit.cast(dfeUInt(4));
@@ -149,15 +151,16 @@ debug.simPrintf("kernelMatrix: %f, %f\n", kernelMatrix[3].getReal(), kernelMatri
 
                 gates["TargetQubit"] =  TargetQubit;
                 gates["ControlQubit"] =  ControlQubit;
-                gates["GateType"] =  GateType;
                 gates["KernelMatrix"] =  kernelMatrix;
-		gates["deriv"] = constant.var( dfeUInt(1), 0); 
+		gates["deriv"] = deriv; 
 
 
 		// Outputs
-		for (int idx=0; idx<4; idx++) {
-			io.output("gatesDFE_"+String.valueOf(idx), gates, DFEstructType);
+		DFEVar outputControllerCounter = control.count.simpleCounter(6, chainedGatesNum);
+		for (int idx=0; idx<chainedGatesNum; idx++) {
+			io.output("gatesDFE_"+String.valueOf(idx), gates, DFEstructType, outputControllerCounter===idx);
 		}
+		
 	}
 
 }

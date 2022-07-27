@@ -231,6 +231,11 @@ int calcqgdKernelDFE(size_t dim, gate_kernel_type* gates, int gatesNum)
 */
 
 
+    if ( gatesNum % qgdDFE_CHAINED_GATES_NUM > 0 ) {
+        printf("The number of gates should be a multiple of %d, but %d was given\n", qgdDFE_CHAINED_GATES_NUM, gatesNum);
+        return -1;
+    }
+
     const uint32_t dataIn[SIZE] = { 1, 0, 2, 0, 4, 1, 8, 3 };
     uint32_t dataOut[SIZE];
 
@@ -246,8 +251,16 @@ printf("size of gate_kernel_type %d bytes\n", sizeof(gate_kernel_type));
     interface_actions.param_dim = dim;
     interface_actions.param_gatesNum = gatesNum;
 
-    interface_actions.instream_gatesfromcpu = (void*)gates;
-    interface_actions.instream_size_gatesfromcpu = sizeof(gate_kernel_type)*gatesNum;
+    interface_actions.instream_gatesfromcpu_0 = (void*)gates;
+    interface_actions.instream_size_gatesfromcpu_0 = sizeof(gate_kernel_type)*gatesNum;
+    interface_actions.instream_gatesfromcpu_1 = (void*)gates;
+    interface_actions.instream_size_gatesfromcpu_1 = sizeof(gate_kernel_type)*gatesNum;
+    interface_actions.instream_gatesfromcpu_2 = (void*)gates;
+    interface_actions.instream_size_gatesfromcpu_2 = sizeof(gate_kernel_type)*gatesNum;
+    interface_actions.instream_gatesfromcpu_3 = (void*)gates;
+    interface_actions.instream_size_gatesfromcpu_3 = sizeof(gate_kernel_type)*gatesNum;
+    
+    //interface_actions.routing_string = "gatesDFEFanout10 -> gatesDFEChain10, gatesDFEFanout20->gatesDFEChain20, gatesDFEFanout21 -> gatesDFEChain21, gatesDFEFanout30 -> gatesDFEChain30, gatesDFEFanout31 -> gatesDFEChain31, gatesDFEFanout32 -> gatesDFEChain32, gatesDFEFanout32 -> gatesDFEChain32";
 	
     //interface_actions.instream_x = dataIn;
     //interface_actions.instream_size_x = SIZE * sizeof dataIn[0];
