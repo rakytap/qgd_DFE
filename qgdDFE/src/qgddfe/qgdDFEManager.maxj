@@ -188,7 +188,7 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 		List<KernelBlock> kernel_list = new ArrayList<KernelBlock>();
 		for(int idx=0; idx<4; idx++) {
 			for (int gate_idx=0; gate_idx<chainedGatesNum; gate_idx++) {
-				kernel_list.add( addKernel(new qgdDFEKernel(makeKernelParameters("qgdDFEKernel_"+String.valueOf(idx)+"_"+String.valueOf(gate_idx)), dim, gate_idx)) );
+				kernel_list.add( addKernel(new qgdDFEKernel(makeKernelParameters("qgdDFEKernel_"+String.valueOf(idx)+"_"+String.valueOf(gate_idx)), dim, gate_idx, gate_idx==chainedGatesNum-1)) );
 				assignToNamedRegion(kernel_list[idx*chainedGatesNum+gate_idx] , named_region_list[idx]);
 			}
 		}
@@ -233,6 +233,14 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 					DFELink y = kernel_list[idx*chainedGatesNum+gate_idx].getOutput("y");
 					y.setAdditionalRegisters(regPerX);
                 			outA <== y;
+
+					DFELink trace2cpu = addStreamToCPU("trace2cpu_"+String.valueOf(idx));
+					trace2cpu.setAdditionalRegisters(regPerX);
+
+					DFELink trace = kernel_list[idx*chainedGatesNum+gate_idx].getOutput("trace");				
+					trace.setAdditionalRegisters(regPerX);
+
+					trace2cpu <== trace;
 				}
 
 			}
@@ -262,6 +270,11 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 			for (int gate_idx=0; gate_idx<chainedGatesNum; gate_idx++) {
 				ei.setScalar("qgdDFEKernel_"+String.valueOf(idx)+"_"+String.valueOf(gate_idx), "dim", dim);
 				ei.setScalar("qgdDFEKernel_"+String.valueOf(idx)+"_"+String.valueOf(gate_idx), "elementNum", dim*dim);
+
+				if( gate_idx==chainedGatesNum-1) {
+					ei.setScalar("qgdDFEKernel_"+String.valueOf(idx)+"_"+String.valueOf(gate_idx), "IterationNum", gatesNum/chainedGatesNum);
+					ei.setStream("trace2cpu_"+String.valueOf(idx), CPUTypes.VOID, 16 );
+				}
 			}
 		}
 
