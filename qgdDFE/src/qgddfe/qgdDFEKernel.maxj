@@ -153,8 +153,10 @@ for ( int idx=0; idx<12; idx++ ) {
 		if (calcTrace==true) {
 
 			DFEVar IterationNum   = io.scalarInput("IterationNum", dfeUInt(16) );
+			//DFEVar GateSetNum     = io.scalarInput("GateSetNum", dfeUInt(16) );
 
 			CounterChain chain = control.count.makeCounterChain();
+			//DFEVar gateSetIdx = chain.addCounter(GateSetNum, 1);
 			DFEVar chainIdx = chain.addCounter(IterationNum, 1);
 			DFEVar colIdx = chain.addCounter(dim, 1);
 			DFEVar rowIdx = chain.addCounter(dim, 1);
@@ -168,7 +170,7 @@ for ( int idx=0; idx<12; idx++ ) {
 			optimization.pushNoPipelining();
 
 			trace <== prevTrace + addToTrace;
-//debug.simPrintf("trace: %f, %d, %d, %d, %d, %d\n", trace, rowIdx, colIdx, chainIdx, IterationNum, (rowIdx>dim-4) & (colIdx===dim-1) & chainIdx===IterationNum-1);
+//debug.simPrintf("trace: %f, %d, %d, %d, %d, %d, %d\n", trace, rowIdx, colIdx, chainIdx, IterationNum, gateSetIdx, (rowIdx>dim-4) & (colIdx===dim-1) & chainIdx===IterationNum-1);
 
 			//output the last 2 elements to have 16bytes on the CPU stream
 			io.output("trace", trace, dataTypeFix64, (rowIdx>=dim-2) & (colIdx===dim-1) & chainIdx===IterationNum-1);

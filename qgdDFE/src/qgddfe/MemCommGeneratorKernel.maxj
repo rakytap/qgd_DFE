@@ -30,20 +30,13 @@ public class MemCommGeneratorKernel extends Kernel {
 		DFEVar IterationNum = io.scalarInput("IterationNum", dfeUInt(16) );		
 		DFEVar burstNum = io.scalarInput("burstNum", dfeUInt(32) );
 		DFEVar chunkNum = io.scalarInput("chunkNum",  dfeUInt(8)); // number of chunks in one burst
-		DFEVar addrOffset = io.scalarInput("addrOffset", dfeUInt(32) );		
-
-		DFEVar dynAddrOffset;
-		if (dynamic_address_offset == 1) {
-			dynAddrOffset = io.scalarInput("dynAddrOffset", dfeUInt(32) );		
-		}
-		else {
-			dynAddrOffset = constant.var(dfeUInt(32), 0);
-		}
+		DFEVar addrOffset = io.scalarInput("addrOffset", dfeUInt(32) );	
 
 
 		SMIO MCGSM = addStateMachine("MCG", new MemCommandGenStateMachine( this, burstCountOneShot));
 		MCGSM.connectInput("chunkNum", chunkNum);
 		MCGSM.connectInput("burstNum", burstNum);
+		MCGSM.connectInput("IterationNum", IterationNum);
 
 		DFEVar burstCount        = MCGSM.getOutput("burstCount");
 		DFEVar issueMemCommand   = MCGSM.getOutput("issueMemCommand");
@@ -116,6 +109,7 @@ debug.simPrintf("interruptSignal: %d, %d, %d, %d, %d, %d\n", interruptSignal, it
 
 		MemAddr = addrOffset + MemAddr;
 		if (dynamic_address_offset == 1) {
+			DFEVar dynAddrOffset = io.scalarInput("dynAddrOffset", dfeUInt(32) );
 			MemAddr = (iterationCounter > 1) ? MemAddr+dynAddrOffset : MemAddr;
 //debug.simPrintf("Mem Addr: %d, %d, %d\n", MemAddr, dynAddrOffset, iterationCounter);
 		} 

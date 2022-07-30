@@ -30,6 +30,7 @@ class MemCommandGenStateMachine extends KernelStateMachine {
 
 	private final DFEsmInput ChunkNum;
 	private final DFEsmInput burstNum;
+	private final DFEsmInput IterationNum;
 
 
 	// State
@@ -37,6 +38,7 @@ class MemCommandGenStateMachine extends KernelStateMachine {
 	private final DFEsmStateValue burstCounterWrapped;
 	private final DFEsmStateValue burstCounter;
 	private final DFEsmStateValue iterationCounter;
+	private final DFEsmStateValue gateSetCounter;
 	private final DFEsmStateValue issueMemCommand;
 
 
@@ -54,6 +56,7 @@ class MemCommandGenStateMachine extends KernelStateMachine {
 
 		ChunkNum      = io.input("chunkNum", dfeUInt(8));
 		burstNum      = io.input("burstNum", dfeUInt(32));
+		IterationNum  = io.input("IterationNum", dfeUInt(16));
 
 
 		// State
@@ -61,6 +64,7 @@ class MemCommandGenStateMachine extends KernelStateMachine {
 		burstCounterWrapped = state.value(dfeUInt(8), 1);
 		burstCounter        = state.value(dfeUInt(32), 0);
 		iterationCounter    = state.value(dfeUInt(16), 1);
+		gateSetCounter      = state.value(dfeUInt(16), 1);
 		issueMemCommand     = state.value(dfeUInt(1), 1);
 
     
@@ -72,10 +76,20 @@ class MemCommandGenStateMachine extends KernelStateMachine {
 			chunkCounterWrapped.next <== 1;
 
 			IF ( burstCounter === burstNum-1 ) {
-				iterationCounter.next <== iterationCounter + 1;
+
+
+				IF ( iterationCounter < IterationNum ) {
+					iterationCounter.next <== iterationCounter + 1;
+				}
+				ELSE {
+					iterationCounter.next <== 1;
+				}
+
 				burstCounterWrapped.next <== 1;
 				burstCounter.next        <== 0;
 				issueMemCommand.next     <== 1;
+
+
 			}
 			ELSE {
 

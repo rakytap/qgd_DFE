@@ -44,7 +44,7 @@ public class GateKernelGeneratorKernel extends Kernel {
 			sft("TargetQubit", dfeUInt(8)),
 			sft ( "ControlQubit", dfeInt(8)),
 			sft ( "GateType", dfeUInt(8)),
-			sft ( "padding", dfeUInt(8)));
+			sft ( "metadata", dfeUInt(8)));
 		}
 	}
 
@@ -71,7 +71,7 @@ public class GateKernelGeneratorKernel extends Kernel {
 @brief ????????????
 @return ??????????
 */
-	public GateKernelGeneratorKernel(final KernelParameters parameters, int dimMax, int chainedGatesNum) {
+	public GateKernelGeneratorKernel(final KernelParameters parameters, int dimMax, int chainedGatesNum, boolean verbose) {
 		super(parameters);
 
 		// Input
@@ -96,29 +96,39 @@ public class GateKernelGeneratorKernel extends Kernel {
 		DFEVar sinPhiLambda = KernelMath.sin( Phi+Lambda  ).cast(dataTypeFix32);
 
 
-
-		kernelMatrix[1].setReal( -cosLambda*sinTheta );
-		kernelMatrix[1].setImaginary( -sinLambda*sinTheta );
+		// extract boolen metadata to construct correct matrix kernel account for derivate operations as well
+		DFEVar metadata = gatesCPU["metadata"];
+		DFEVar zeroOutKernelElement_0 = metadata.slice(0).cast(dfeUInt(1));
+		DFEVar zeroOutKernelElement_1 = metadata.slice(1).cast(dfeUInt(1));
+		DFEVar zeroOutKernelElement_2 = metadata.slice(2).cast(dfeUInt(1));
+		DFEVar zeroOutKernelElement_3 = metadata.slice(3).cast(dfeUInt(1));
+		DFEVar deriv = metadata.slice(7).cast(dfeUInt(1));
+/*
+if( verbose ) {	
+debug.simPrintf("kernelMatrix: %d, %d, %d, %d, %d\n", metadata, zeroOutKernelElement_3, zeroOutKernelElement_2, zeroOutKernelElement_1, zeroOutKernelElement_0);		
+}
+*/
+		// construct 2x2 complex matrix kernel for gate operations
+		kernelMatrix[1].setReal( zeroOutKernelElement_1 ? constant.var( dataTypeFix32, 0) : -cosLambda*sinTheta );
+		kernelMatrix[1].setImaginary( zeroOutKernelElement_1 ? constant.var( dataTypeFix32, 0) : -sinLambda*sinTheta );
 
 
 		//sinTheta = optimization.pipeline( sinTheta );
-		kernelMatrix[2].setReal( cosPhi*sinTheta );
-		kernelMatrix[2].setImaginary( sinPhi*sinTheta );
+		kernelMatrix[2].setReal( zeroOutKernelElement_2 ? constant.var( dataTypeFix32, 0) : cosPhi*sinTheta );
+		kernelMatrix[2].setImaginary( zeroOutKernelElement_2 ? constant.var( dataTypeFix32, 0) : sinPhi*sinTheta );
 
-		kernelMatrix[3].setReal( cosPhiLambda*cosTheta );
-		kernelMatrix[3].setImaginary( sinPhiLambda*cosTheta );
+		kernelMatrix[3].setReal( zeroOutKernelElement_3 ? constant.var( dataTypeFix32, 0) : cosPhiLambda*cosTheta );
+		kernelMatrix[3].setImaginary( zeroOutKernelElement_3 ? constant.var( dataTypeFix32, 0) : sinPhiLambda*cosTheta );
 		
 /*
 		for (int idx=0; idx<7; idx++) {
 			cosTheta = optimization.pipeline( cosTheta );
 		}
 */
-		kernelMatrix[0].setReal( cosTheta );
-		kernelMatrix[0].setImaginary( constant.var( dataTypeFix32, 0) );
+		kernelMatrix[0].setReal( zeroOutKernelElement_0 ? constant.var( dataTypeFix32, 0) : cosTheta );
+		kernelMatrix[0].setImaginary( zeroOutKernelElement_0 ? constant.var( dataTypeFix32, 0) : constant.var( dataTypeFix32, 0) );
 
-		// extract the boolen for derivation encoded in the most significant bit of the target bit
-		DFEVar deriv = gatesCPU["TargetQubit"];
-		deriv = deriv.slice(7).cast(dfeUInt(1));
+
 
 		DFEVar TargetQubit = gatesCPU["TargetQubit"];
 		TargetQubit = TargetQubit.cast(dfeUInt(4));
@@ -142,10 +152,17 @@ debug.simPrintf("tt: %f\n", tmp);
 debug.simPrintf("tt: %f, %f\n", -cosLambda*sinTheta, -sinLambda*sinTheta);
 debug.simPrintf("tt: %f, %f, %f, %f\n", cosPhi, sinPhi, Phi, KernelMath.cos( Phi  )      );
 debug.simPrintf("tt: %f, %f\n", cosPhiLambda*cosTheta, sinPhiLambda*cosTheta);
+*/
+/*
+if( verbose ) {	
 debug.simPrintf("kernelMatrix: %f, %f\n", kernelMatrix[0].getReal(), kernelMatrix[0].getImaginary());	
 debug.simPrintf("kernelMatrix: %f, %f\n", kernelMatrix[1].getReal(), kernelMatrix[1].getImaginary());
 debug.simPrintf("kernelMatrix: %f, %f\n", kernelMatrix[2].getReal(), kernelMatrix[2].getImaginary());
 debug.simPrintf("kernelMatrix: %f, %f\n", kernelMatrix[3].getReal(), kernelMatrix[3].getImaginary());
+}
+*/
+/*
+
 */
 		DFEStruct gates = DFEstructType.newInstance(this);
 
