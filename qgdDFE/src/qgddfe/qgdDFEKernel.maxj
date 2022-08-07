@@ -16,6 +16,7 @@ import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStructType;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEVector;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEVectorType;
 import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.CounterChain;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.Reductions;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -76,19 +77,36 @@ public class qgdDFEKernel extends Kernel {
 @brief ????????????
 @return ??????????
 */
-	public qgdDFEKernel(final KernelParameters parameters, int dimMax, int gate_idx, boolean calcTrace) {
+	public qgdDFEKernel(final KernelParameters parameters, int dimMax, int gates_num, boolean calcTrace) {
 		super(parameters);
+		
+int input_latency = 50;
 
 		// Input
 		DFEComplex x = io.input("x", cplxTypeFix32);
 
 		DFEVar dim          = io.scalarInput("dim", dfeUInt(11) );
 		DFEVar elementNum   = io.scalarInput("elementNum", dfeUInt(32) );
-
-
-
+		
 		DFEVar inputControllerCounter = control.count.simpleCounter(32, elementNum);
-		final DFEStruct gate = io.input("gates", DFEstructType, inputControllerCounter===0);
+		DFEVar inputController = inputControllerCounter===0;
+		
+for (int gate_idx=1; gate_idx<gates_num; gate_idx++) {
+	inputController = inputController | inputControllerCounter===gate_idx*input_latency;
+}		
+		final DFEStruct gate_input = io.input("gates", DFEstructType, inputController);
+		
+List<DFEStruct> gate_list = new ArrayList<DFEStruct>();
+for (int gate_idx=0; gate_idx<gates_num; gate_idx++) {
+	gate_list.add( Reductions.streamHold(gate_input, inputControllerCounter === gate_idx*input_latency) );
+}	
+
+		
+
+for (int gate_idx=0; gate_idx<gates_num; gate_idx++) {
+
+	DFEStruct gate = gate_list[gate_idx];
+
 
 		DFEVar controlQubit = gate["ControlQubit"];
 		DFEVar targetQubit  = gate["TargetQubit"];
@@ -101,7 +119,7 @@ public class qgdDFEKernel extends Kernel {
 //debug.simPrintf("control : %d, %d\n", controlQubit, indexStepControl);
 
 
-		SMIO IndexGenSM = addStateMachine("IndexGenSM", new IndexGenStateMachine( this));
+		SMIO IndexGenSM = addStateMachine("IndexGenSM_"+String.valueOf(gate_idx), new IndexGenStateMachine( this));
 		IndexGenSM.connectInput("indexStepTarget", indexStepTarget);
 		IndexGenSM.connectInput("dim", dim-1);
 
@@ -139,14 +157,16 @@ for ( int idx=0; idx<12; idx++ ) {
 		zero.setImaginary( constant.var( dataTypeFix32, 0.0) );
 
 		x = deriv ? zero : x;
-		DFEComplex y = ControlQubitState ?  transformedAmplitude : x;
+		x = ControlQubitState ?  transformedAmplitude : x;
 //debug.simPrintf("%d ControlQubit: %d, %d\n", indexCounter, useControlQubit, ControlQubitState);
 
 
 //debug.simPrintf("elements: %f, %f\n", x.getReal(), y.getReal());
 
+}
+
 		// Output
-		io.output("y", y, cplxTypeFix32);
+		io.output("y", x, cplxTypeFix32);
 
 
 		// Calculate the real trace of the transformed unitary
@@ -164,7 +184,7 @@ for ( int idx=0; idx<12; idx++ ) {
 
 			DFEVar trace      = dataTypeFix64.newInstance(this);
 
-			DFEVar addToTrace = colIdx===rowIdx ? y.getReal().cast(dataTypeFix64) : constant.var( dataTypeFix64, 0.0);
+			DFEVar addToTrace = colIdx===rowIdx ? x.getReal().cast(dataTypeFix64) : constant.var( dataTypeFix64, 0.0);
 			optimization.pushNoPipelining();
 			DFEVar prevTrace = (colIdx+rowIdx)===0 ? constant.var( dataTypeFix64, 0.0) : stream.offset(trace,-1);
 			optimization.pushNoPipelining();

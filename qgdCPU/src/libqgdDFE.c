@@ -52,7 +52,11 @@ static max_engine_t *engine = NULL;
 */
 int get_chained_gates_num() {
 
+#ifdef qgdDFE_GATES_NUM_PER_KERNEL
+    return qgdDFE_CHAINED_GATES_NUM*qgdDFE_GATES_NUM_PER_KERNEL;
+#else
     return qgdDFE_CHAINED_GATES_NUM;
+#endif    
 }
 
 
@@ -168,6 +172,7 @@ int load2LMEM( Complex8* data, size_t dim ) {
  * \brief ???????????
  * 
  */
+/*
 int downloadFromLMEM( Complex8** data, size_t dim ) {
 
     // test whether the DFE engine can be initialized
@@ -219,14 +224,45 @@ int downloadFromLMEM( Complex8** data, size_t dim ) {
     return 0;
 
 }
-
-
+*/
 
 /**
  * \brief ???????????
  * 
  */
 int calcqgdKernelDFE(size_t dim, gate_kernel_type* gates, int gatesNum, int gateSetNum, double* trace )
+{
+
+
+   int gateNumOneShotLimit = 1 << 20;
+   int gateSetNumOneShotLimit = gateNumOneShotLimit/gatesNum;
+   gateSetNumOneShotLimit = gateSetNumOneShotLimit - (gateSetNumOneShotLimit % 4);
+   
+   for (int  processedGateSet = 0; processedGateSet<gateSetNum; ) {
+   
+       int gateSetToProcess;
+       if ( gateSetNum - processedGateSet > gateSetNumOneShotLimit + 4) {
+           gateSetToProcess = gateSetNumOneShotLimit;
+       }
+       else {
+           gateSetToProcess = gateSetNum - processedGateSet;     
+       }
+
+       calcqgdKernelDFE_oneShot(dim, gates+processedGateSet*gatesNum, gatesNum, gateSetToProcess, trace+processedGateSet );
+       
+       
+       processedGateSet = processedGateSet + gateSetToProcess;
+
+   
+   
+   }
+}
+
+/**
+ * \brief ???????????
+ * 
+ */
+int calcqgdKernelDFE_oneShot(size_t dim, gate_kernel_type* gates, int gatesNum, int gateSetNum, double* trace )
 {
 
 /*
@@ -238,59 +274,82 @@ int calcqgdKernelDFE(size_t dim, gate_kernel_type* gates, int gatesNum, int gate
 */
 
 
-    if ( gatesNum % qgdDFE_CHAINED_GATES_NUM > 0 ) {
+    if ( gatesNum % (get_chained_gates_num()) > 0 ) {
         printf("The number of gates should be a multiple of %d, but %d was given\n", qgdDFE_CHAINED_GATES_NUM, gatesNum);
         return -1;
     }
-    
+/*    
     if ( gateSetNum % 4 > 0 ) {
         printf("The number of set of gates should be a multiple of 4, but %d was given\n", gateSetNum);
         return -1;
     }    
-    
-    int gateSetNum_splitted = gateSetNum/4;
-    
-    const uint32_t dataIn[SIZE] = { 1, 0, 2, 0, 4, 1, 8, 3 };
-    uint32_t dataOut[SIZE];
-
+  */  
+    //int gateSetNum_splitted = gateSetNum/4;
+printf("%d\n", gateSetNum );
+    int gateSetNum_splitted[4];
+    int gateSetNum_splitted0 = gateSetNum/4;
+    int gateSetNum_oveflow = gateSetNum % 4;
+    for (int idx=0; idx<4; idx++) {
+        if ( idx<gateSetNum_oveflow ) {
+            gateSetNum_splitted[idx] = gateSetNum_splitted0 + 1;
+        }
+        else {
+            gateSetNum_splitted[idx] = gateSetNum_splitted0;
+        }
+printf("%d\n", gateSetNum_splitted[idx] );
+    }
+  
     size_t element_num = dim*dim;
+      
+    uint64_t tick_counts[4];
+    for (int idx=0; idx<4; idx++) {
+        tick_counts[idx] = element_num*gateSetNum_splitted[idx]*gatesNum/get_chained_gates_num();
+    }
+  
+  
+   // allocate memory for output    
+   int64_t* trace_fix = (int64_t*)malloc( 2*sizeof(int64_t)*gateSetNum );  
+  
+
+
 //int targetQubit = 2;
 
-printf("%d, control qbit: %d, target qbit: %d\n", element_num, gates->control_qbit, gates->target_qbit);
+printf("element num:%d, control qbit: %d, target qbit: %d\n", element_num, gates->control_qbit, gates->target_qbit);
 printf("size of gate_kernel_type %d bytes\n", sizeof(gate_kernel_type));
+printf("tickcount: %lu\n", tick_counts[0] );
+printf("number of gates: %d\n", gatesNum);
+
 
     qgdDFE_actions_t interface_actions;
     //interface_actions.ticks_qgdDFEKernel = element_num*2;
     interface_actions.param_element_num  = element_num;
     interface_actions.param_dim = dim;
     interface_actions.param_gatesNum = gatesNum;
-    interface_actions.param_gateSetNum = gateSetNum_splitted;
+    //interface_actions.param_gateSetNum = gateSetNum_splitted[0];
+
+    interface_actions.param_gateSetNum_0 = gateSetNum_splitted[0];
+    interface_actions.param_gateSetNum_1 = gateSetNum_splitted[1];
+    interface_actions.param_gateSetNum_2 = gateSetNum_splitted[2];
+    interface_actions.param_gateSetNum_3 = gateSetNum_splitted[3];            
+              
 
     interface_actions.instream_gatesfromcpu_0 = (void*)gates;
-    interface_actions.instream_size_gatesfromcpu_0 = sizeof(gate_kernel_type)*gatesNum*gateSetNum_splitted;
-    interface_actions.instream_gatesfromcpu_1 = (void*)(gates+gatesNum*gateSetNum_splitted);
-    interface_actions.instream_size_gatesfromcpu_1 = sizeof(gate_kernel_type)*gatesNum*gateSetNum_splitted;
-    interface_actions.instream_gatesfromcpu_2 = (void*)(gates+2*gatesNum*gateSetNum_splitted);
-    interface_actions.instream_size_gatesfromcpu_2 = sizeof(gate_kernel_type)*gatesNum*gateSetNum_splitted;
-    interface_actions.instream_gatesfromcpu_3 = (void*)(gates+3*gatesNum*gateSetNum_splitted);
-    interface_actions.instream_size_gatesfromcpu_3 = sizeof(gate_kernel_type)*gatesNum*gateSetNum_splitted;
+    interface_actions.instream_size_gatesfromcpu_0 = sizeof(gate_kernel_type)*gatesNum*gateSetNum_splitted[0];
+    interface_actions.instream_gatesfromcpu_1 = (void*)(gates+gatesNum*gateSetNum_splitted[0]);
+    interface_actions.instream_size_gatesfromcpu_1 = sizeof(gate_kernel_type)*gatesNum*gateSetNum_splitted[1];
+    interface_actions.instream_gatesfromcpu_2 = (void*)(gates+gatesNum*(gateSetNum_splitted[0]+gateSetNum_splitted[1]));
+    interface_actions.instream_size_gatesfromcpu_2 = sizeof(gate_kernel_type)*gatesNum*gateSetNum_splitted[2];
+    interface_actions.instream_gatesfromcpu_3 = (void*)(gates+gatesNum*(gateSetNum_splitted[0]+gateSetNum_splitted[1]+gateSetNum_splitted[2]));
+    interface_actions.instream_size_gatesfromcpu_3 = sizeof(gate_kernel_type)*gatesNum*gateSetNum_splitted[3];
 
 
 
-    // cast fix point to floats
-    // convert data to fixpoint number representation into (0,31) and a sign bit
-    
-    int64_t** trace_fix_arr[4];
-    for( size_t idx=0; idx<4; idx++) {
-        trace_fix_arr[idx] = (int64_t*)malloc( 2*sizeof(int64_t)*gateSetNum );
-    }     
-    
-    int64_t* trace_fix = (int64_t*)malloc( 2*sizeof(int64_t)*gateSetNum );
+
 
     interface_actions.outstream_trace2cpu_0 = trace_fix;
-    interface_actions.outstream_trace2cpu_1 = (void*)(trace_fix+2*gateSetNum_splitted);//trace_fix_arr[0];//(trace_fix+2*gateSetNum_splitted);
-    interface_actions.outstream_trace2cpu_2 = (trace_fix+4*gateSetNum_splitted);
-    interface_actions.outstream_trace2cpu_3 = (trace_fix+6*gateSetNum_splitted);
+    interface_actions.outstream_trace2cpu_1 = (void*)(trace_fix+2*gateSetNum_splitted[0]);//trace_fix_arr[0];//(trace_fix+2*gateSetNum_splitted);
+    interface_actions.outstream_trace2cpu_2 = (trace_fix+2*(gateSetNum_splitted[0]+gateSetNum_splitted[1]));
+    interface_actions.outstream_trace2cpu_3 = (trace_fix+2*(gateSetNum_splitted[0]+gateSetNum_splitted[1]+gateSetNum_splitted[2]));
             
 
     
@@ -319,12 +378,7 @@ printf("gates num:%d, in %d sets\n", gatesNum, gateSetNum );
             trace[idx*gateSetNum+jdx] = ((double)trace_fix_loc[2*jdx+1]/(1<<30));
         }
     }
-*/
-//    free( trace );
-
-    for( size_t idx=0; idx<4; idx++) {
-        free( trace_fix_arr[idx] );
-    }            
+*/        
 
     return 0;
 

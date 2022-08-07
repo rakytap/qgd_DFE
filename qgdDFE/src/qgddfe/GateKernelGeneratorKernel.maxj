@@ -14,7 +14,11 @@ import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStructType;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEVector;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEVectorType;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.CounterChain;
 import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.KernelMath;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.CounterChain;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.Reductions;
 
 //import java.util.ArrayList;
 //import java.util.List;
@@ -71,11 +75,33 @@ public class GateKernelGeneratorKernel extends Kernel {
 @brief ????????????
 @return ??????????
 */
-	public GateKernelGeneratorKernel(final KernelParameters parameters, int dimMax, int chainedGatesNum, boolean verbose) {
+	public GateKernelGeneratorKernel(final KernelParameters parameters, int dimMax, int chainedGatesNum, int gatesNumPerKernel, boolean verbose) {
 		super(parameters);
 
-		// Input
-		final DFEStruct gatesCPU = io.input("gatesCPU", CPUstructType);
+
+		CounterChain chain = control.count.makeCounterChain();
+		DFEVar outputControllerCounter = chain.addCounter(chainedGatesNum, 1);
+		if ( gatesNumPerKernel > 1 ) {
+			DFEVar gateInKernelCounter = chain.addCounter(gatesNumPerKernel, 1);		
+		}
+		DFEVar dataBatchCounter = chain.addCounter(4, 1);
+		
+		// Input		
+		DFEVar inputDataBatch = io.input("gatesCPU", dfeUInt(32));
+		
+		// buiuld up higher bitwidth input from batches
+		DFEVar dataBatch_hold_0 = Reductions.streamHold(inputDataBatch, dataBatchCounter === 0);
+		DFEVar dataBatch_hold_1 = Reductions.streamHold(inputDataBatch, dataBatchCounter === 1);
+		DFEVar dataBatch_hold_2 = Reductions.streamHold(inputDataBatch, dataBatchCounter === 2);		
+		
+		DFEVar inputDataCat = inputDataBatch.cat(dataBatch_hold_2);
+		inputDataCat = inputDataCat.cat(dataBatch_hold_1);
+		inputDataCat = inputDataCat.cat(dataBatch_hold_0);
+					
+		final DFEStruct gatesCPU = inputDataCat.reinterpret(CPUstructType);// io.input("gatesCPU", CPUstructType);
+		
+		
+		// create gate matrix kernel
 
 		DFEVector<DFEComplex> kernelMatrix = kernelMatrixType.newInstance(this);
 
@@ -135,8 +161,13 @@ debug.simPrintf("kernelMatrix: %d, %d, %d, %d, %d\n", metadata, zeroOutKernelEle
 
 		DFEVar ControlQubit = gatesCPU["ControlQubit"];
 		ControlQubit = ControlQubit.cast(dfeInt(5));
+/*		
+if( verbose ) {	
+debug.simPrintf("%d control : %d, target qubit:%d\n", dataBatchCounter, ControlQubit, TargetQubit);
+}		
+*/		
 //debug.simPrintf("control : %d\n", ControlQubit);
-		DFEVar GateType = gatesCPU["GateType"];
+		//DFEVar GateType = gatesCPU["GateType"];
 /*
 		for (int idx=0; idx<44; idx++) {
 			TargetQubit = optimization.pipeline( TargetQubit );
@@ -173,10 +204,41 @@ debug.simPrintf("kernelMatrix: %f, %f\n", kernelMatrix[3].getReal(), kernelMatri
 
 
 		// Outputs
-		DFEVar outputControllerCounter = control.count.simpleCounter(6, chainedGatesNum);
-		for (int idx=0; idx<chainedGatesNum; idx++) {
-			io.output("gatesDFE_"+String.valueOf(idx), gates, DFEstructType, outputControllerCounter===idx);
+		if ( chainedGatesNum == 1 & gatesNumPerKernel == 1 ) {
+			io.output("gatesDFE_0", gates, DFEstructType, dataBatchCounter===3 );
 		}
+		else if ( chainedGatesNum > 1 & gatesNumPerKernel == 1 ) {
+			//DFEVar outputControllerCounter = control.count.simpleCounter(6, chainedGatesNum);
+			for (int idx=0; idx<chainedGatesNum; idx++) {
+				io.output("gatesDFE_"+String.valueOf(idx), gates, DFEstructType, outputControllerCounter===idx & dataBatchCounter===3);
+			}			
+		}
+		else if ( chainedGatesNum == 1 & gatesNumPerKernel > 1 ) {
+			io.output("gatesDFE_0", gates, DFEstructType, dataBatchCounter===3 );		
+		}
+		else {
+			//CounterChain chain = control.count.makeCounterChain();
+			//DFEVar outputControllerCounter = chain.addCounter(chainedGatesNum, 1);
+			//DFEVar gateInKernelCounter = chain.addCounter(gatesNumPerKernel, 1);
+			
+/*
+if( verbose ) {	
+debug.simPrintf("gate output: %d, %d\n", gateInKernelCounter, outputControllerCounter);	
+}
+*/			
+//gates = optimization.limitFanout(gates, 12);	
+			
+			for (int idx=0; idx<chainedGatesNum; idx++) {
+				io.output("gatesDFE_"+String.valueOf(idx), gates, DFEstructType, outputControllerCounter===idx & dataBatchCounter===3);
+			}
+		}
+		
+		//
+		
+		
+		
+	
+		
 		
 	}
 
