@@ -40,8 +40,8 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 	int dim = 1024;
 	int dim_over_2 = dim/2;
 	int burstCountOneShot = 100;
-	static int chainedGatesNum = 4;
-	static int gatesNumPerKernel = 6;	
+	static int chainedGatesNum = 24;
+	static int gatesNumPerKernel = 1;	
 
 /**
 @brief ????????????
@@ -153,7 +153,28 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 		
 		// slow clock region for gate and memory address generators
 		ManagerClock slowClock = generateStaticClock("slowClock", 150);
-		ManagerClock memoryClock = generateStaticClock("memoryClock", 250);								
+		ManagerClock memoryClock = generateStaticClock("memoryClock", 250);	
+
+                // kernels to split input data comming from CPU to SLRs
+		pushNamedRegion(named_region_list[0]);
+		KernelBlock gateDataSplitKernel = addKernel(new GateDataSplitKernel(makeKernelParameters("GateDataSplitKernel") ) );
+		gateDataSplitKernel.setClock( slowClock );
+		DFELink gatesDataCPU = gateDataSplitKernel.getInput( "gatesDataCPU" );
+		gatesDataCPU.setAdditionalRegisters(regPerX);
+		DFELink gatesfromcpu = addStreamFromCPU("gatesfromcpu");
+		gatesfromcpu.setAdditionalRegisters(regPerX);
+		gatesDataCPU <== gatesfromcpu;
+
+		
+		
+		Fanout inputSplitter = fanout("inputSplitFanout");
+		inputSplitter.setClock( slowClock );
+		DFELink fromCPU = addStreamFromCPU("fromcpu");
+		fromCPU.setAdditionalRegisters(regPerX);	
+		DFELink inputSplitterStream = inputSplitter.getInput();
+		inputSplitterStream.setAdditionalRegisters(regPerX);	
+		inputSplitterStream <== fromCPU;
+		popRegion();				
 		
 		for( int idx=0; idx<4; idx++) {
 		
@@ -190,16 +211,17 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 			
 //			lmem2cpu_list.add( iface_list[idx].addStreamFromLMem("lmem2cpu_"+String.valueOf(idx), mcg_lmem2cpu_kernel_list[idx].getOutput("cmdStream")) );			
 			
-			DFELink FromCPU = addStreamFromCPU("fromcpu_"+String.valueOf(idx));// , StreamMode.LOW_LATENCY_ENABLED);
-			FromCPU.setAdditionalRegisters(regPerX_CPU);
+			DFELink FromFanout = inputSplitter.addOutput( "fromFanout_"+String.valueOf(idx));
+			//DFELink FromCPU = addStreamFromCPU("fromcpu_"+String.valueOf(idx));// , StreamMode.LOW_LATENCY_ENABLED);
+			FromFanout.setAdditionalRegisters(regPerX_CPU);
 			
 			popRegion();
-			FromCPU = slrCrossingChainWithClock("inputfromcpu", Integer.toString(idx), FromCPU, -1, idx, regPerX, this, slowClock);		
+			FromFanout = slrCrossingChainWithClock("inputfromcpu", Integer.toString(idx), FromFanout, -1, idx, regPerX, this, slowClock);		
 			//FromCPU = slrCrossingChain("inputfromcpu", Integer.toString(idx), FromCPU, -1, idx, regPerX, this);					
 			pushNamedRegion(named_region_list[idx]);
 			
 			cpu2lmem_list[idx].setAdditionalRegisters(regPerX_LMEM);			
-			cpu2lmem_list[idx] <== FromCPU;
+			cpu2lmem_list[idx] <== FromFanout;
 //			addStreamToCPU("tocpu_"+String.valueOf(idx)) <== lmem2cpu_list[idx];		
 			
 			
@@ -208,8 +230,8 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 			gateKernel_list.add( addKernel(new GateKernelGeneratorKernel(makeKernelParameters("GateKernelGeneratorKernel_"+String.valueOf(idx)), dim, chainedGatesNum, gatesNumPerKernel, idx==0)) ); 
 			gateKernel_list[idx].setClock( slowClock );
 			
-			DFELink gatesFromCPU = addStreamFromCPU("gatesfromcpu_"+String.valueOf(idx));//, StreamMode.LOW_LATENCY_ENABLED);
-			gatesFromCPU.setAdditionalRegisters(regPerX_CPU);
+			DFELink gatesFromCPU = gateDataSplitKernel.getOutput("gatesDataCPUchunk_"+String.valueOf(idx)); //addStreamFromCPU("gatesfromcpu_"+String.valueOf(idx));//, StreamMode.LOW_LATENCY_ENABLED);
+			gatesFromCPU.setAdditionalRegisters(regPerX);
 			popRegion();
 			gatesFromCPU = slrCrossingChainWithClock("gatesfromcpu", Integer.toString(idx), gatesFromCPU, -1, idx, regPerX, this, slowClock);		
 			//gatesFromCPU = slrCrossingChain("gatesfromcpu", Integer.toString(idx), gatesFromCPU, -1, idx, regPerX, this);					
@@ -385,13 +407,16 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 			ei.ignoreLMem("inA_"+String.valueOf(idx));
 		}
 		//ei.ignoreLMem("outA");
+		
+		ei.ignoreStream("fromcpu");					
 
 		for( int idx=0; idx<4; idx++) {
 			ei.ignoreKernel("CPU2LMEMCommGenKernel_"+String.valueOf(idx));
 //			ei.ignoreKernel("LMEM2CPUCommGenKernel_"+String.valueOf(idx));
 			
 //			ei.ignoreStream("tocpu_"+String.valueOf(idx));		
-			ei.ignoreStream("fromcpu_"+String.valueOf(idx));
+			//ei.ignoreStream("fromcpu_"+String.valueOf(idx));
+
 			ei.ignoreLMem("cpu2lmem_"+String.valueOf(idx));
 //			ei.ignoreLMem("lmem2cpu_"+String.valueOf(idx));			
 		}
@@ -401,7 +426,8 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 	            "gatesfromcpuFanout30 -> gatesfromcpuChain30, gatesfromcpuFanout31 -> gatesfromcpuChain31, gatesfromcpuFanout32 -> gatesfromcpuChain32, " + 
 	            "inputfromcpuFanout10 -> inputfromcpuChain10, " +
 	            "inputfromcpuFanout20->inputfromcpuChain20, inputfromcpuFanout21 -> inputfromcpuChain21, " +
-	            "inputfromcpuFanout30 -> inputfromcpuChain30, inputfromcpuFanout31 -> inputfromcpuChain31, inputfromcpuFanout32 -> inputfromcpuChain32 ");		
+	            "inputfromcpuFanout30 -> inputfromcpuChain30, inputfromcpuFanout31 -> inputfromcpuChain31, inputfromcpuFanout32 -> inputfromcpuChain32, " +
+	            "inputSplitFanout -> fromFanout_0, inputSplitFanout -> fromFanout_1, inputSplitFanout -> fromFanout_2, inputSplitFanout -> fromFanout_3");		
 
 		return ei ;
 	}	
@@ -423,11 +449,13 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
                 // starting address of LMEM
 		InterfaceParam zero = ei.addConstant(0l);
 
+			ei.setStream("fromcpu", CPUTypes.VOID, sizeInBytes );
+/*			
 		for( int idx=0; idx<4; idx++) {
 			ei.setStream("fromcpu_"+String.valueOf(idx), CPUTypes.VOID, sizeInBytes );
 		}
 
-
+*/
 		// set parameters for the address generator kernel
 		InterfaceParam burstSize = ei.addConstant(64);  //for single DIMM
 
@@ -462,7 +490,8 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 	            "gatesfromcpuFanout30 -> gatesfromcpuChain30, gatesfromcpuFanout31 -> gatesfromcpuChain31, gatesfromcpuFanout32 -> gatesfromcpuChain32, " + 
 	            "inputfromcpuFanout10 -> inputfromcpuChain10, " +
 	            "inputfromcpuFanout20->inputfromcpuChain20, inputfromcpuFanout21 -> inputfromcpuChain21, " +
-	            "inputfromcpuFanout30 -> inputfromcpuChain30, inputfromcpuFanout31 -> inputfromcpuChain31, inputfromcpuFanout32 -> inputfromcpuChain32 ");				
+	            "inputfromcpuFanout30 -> inputfromcpuChain30, inputfromcpuFanout31 -> inputfromcpuChain31, inputfromcpuFanout32 -> inputfromcpuChain32, " +
+	            "inputSplitFanout -> fromFanout_0, inputSplitFanout -> fromFanout_1, inputSplitFanout -> fromFanout_2, inputSplitFanout -> fromFanout_3");				
 
 		ei.ignoreAll(Direction.IN_OUT);
 

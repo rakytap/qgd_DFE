@@ -1,0 +1,60 @@
+package qgddfe;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.Kernel;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelParameters;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEType;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEFix.SignMode;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEComplex;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEComplexType;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelBase;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStructType;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEVector;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEVectorType;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.CounterChain;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.KernelMath;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.CounterChain;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.Reductions;
+
+//import java.util.ArrayList;
+//import java.util.List;
+
+/**
+@brief ????????????
+@return ??????????
+*/
+public class GateDataSplitKernel extends Kernel {
+
+	
+
+/**
+@brief ????????????
+@return ??????????
+*/
+	public GateDataSplitKernel(final KernelParameters parameters) {
+		super(parameters);
+
+		// Input		
+		DFEVar inputData = io.input("gatesDataCPU", dfeUInt(128));
+
+		
+		// buiuld up higher bitwidth input from batches
+		DFEVar gatesDataCPUchunk_0 = inputData.slice(0,32).reinterpret(dfeInt(32));
+		DFEVar gatesDataCPUchunk_1 = inputData.slice(32,32).reinterpret(dfeInt(32));
+		DFEVar gatesDataCPUchunk_2 = inputData.slice(64,32).reinterpret(dfeInt(32));
+		DFEVar gatesDataCPUchunk_3 = inputData.slice(96,32).reinterpret(dfeInt(32));	
+	
+//debug.simPrintf("split data: %d, %d, %d, %d\n", gatesDataCPUchunk_0, gatesDataCPUchunk_1, gatesDataCPUchunk_2, gatesDataCPUchunk_3);									
+
+		io.output("gatesDataCPUchunk_0", gatesDataCPUchunk_0, dfeInt(32));
+		io.output("gatesDataCPUchunk_1", gatesDataCPUchunk_1, dfeInt(32));
+		io.output("gatesDataCPUchunk_2", gatesDataCPUchunk_2, dfeInt(32));
+		io.output("gatesDataCPUchunk_3", gatesDataCPUchunk_3, dfeInt(32));
+
+	}
+		
+}

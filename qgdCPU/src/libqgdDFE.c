@@ -145,11 +145,13 @@ int load2LMEM( Complex8* data, size_t dim ) {
     // upload data to DFE LMEM
     qgdDFE_writeLMem_actions_t interface_actions;
     interface_actions.param_element_num = 2*element_num;
+    interface_actions.instream_fromcpu = (void*)data_fix;
+    /*
     interface_actions.instream_fromcpu_0 = (void*)data_fix;
     interface_actions.instream_fromcpu_1 = (void*)data_fix;
     interface_actions.instream_fromcpu_2 = (void*)data_fix;
     interface_actions.instream_fromcpu_3 = (void*)data_fix;     
-
+*/
     qgdDFE_writeLMem_run( engine, &interface_actions);
 
     free( data_fix );
@@ -319,6 +321,37 @@ printf("size of gate_kernel_type %d bytes\n", sizeof(gate_kernel_type));
 printf("tickcount: %lu\n", tick_counts[0] );
 printf("number of gates: %d\n", gatesNum);
 
+    // organize input gates into 32 bit chunks
+    void* gates_chunked = malloc(sizeof(gate_kernel_type)*gatesNum*gateSetNum);
+printf("hhhhhhhhhhhhhhhhhhh %d\n", sizeof(gate_kernel_type)*gatesNum*gateSetNum );
+    for( int idx=0; idx<gatesNum*gateSetNum_splitted[0]; idx++ ) {
+
+        void* gates_0 = (void*)&gates[idx + 0*gatesNum*gateSetNum_splitted[0]];
+        void* gates_1 = (void*)&gates[idx + 1*gatesNum*gateSetNum_splitted[0]];
+        void* gates_2 = (void*)&gates[idx + 2*gatesNum*gateSetNum_splitted[0]];
+        void* gates_3 = (void*)&gates[idx + 3*gatesNum*gateSetNum_splitted[0]];
+
+        memcpy( gates_chunked + idx*64 + 0, gates_0, 4 );
+        memcpy( gates_chunked + idx*64 + 4, gates_1, 4 );
+        memcpy( gates_chunked + idx*64 + 8, gates_2, 4 );
+        memcpy( gates_chunked + idx*64 + 12, gates_3, 4 );
+
+        memcpy( gates_chunked + idx*64 + 16, gates_0+4, 4 );
+        memcpy( gates_chunked + idx*64 + 20, gates_1+4, 4 );
+        memcpy( gates_chunked + idx*64 + 24, gates_2+4, 4 );
+        memcpy( gates_chunked + idx*64 + 28, gates_3+4, 4 );
+
+        memcpy( gates_chunked + idx*64 + 32, gates_0+8, 4 );
+        memcpy( gates_chunked + idx*64 + 36, gates_1+8, 4 );
+        memcpy( gates_chunked + idx*64 + 40, gates_2+8, 4 );
+        memcpy( gates_chunked + idx*64 + 44, gates_3+8, 4 );
+
+        memcpy( gates_chunked + idx*64 + 48, gates_0+12, 4 );
+        memcpy( gates_chunked + idx*64 + 52, gates_1+12, 4 );
+        memcpy( gates_chunked + idx*64 + 56, gates_2+12, 4 );
+        memcpy( gates_chunked + idx*64 + 60, gates_3+12, 4 );
+    }
+
 
     qgdDFE_actions_t interface_actions;
     //interface_actions.ticks_qgdDFEKernel = element_num*2;
@@ -332,7 +365,10 @@ printf("number of gates: %d\n", gatesNum);
     interface_actions.param_gateSetNum_2 = gateSetNum_splitted[2];
     interface_actions.param_gateSetNum_3 = gateSetNum_splitted[3];            
               
-
+    interface_actions.instream_gatesfromcpu = gates_chunked;
+    interface_actions.instream_size_gatesfromcpu = sizeof(gate_kernel_type)*gatesNum*gateSetNum;
+    interface_actions.ticks_GateDataSplitKernel = gatesNum*gateSetNum;
+/*
     interface_actions.instream_gatesfromcpu_0 = (void*)gates;
     interface_actions.instream_size_gatesfromcpu_0 = sizeof(gate_kernel_type)*gatesNum*gateSetNum_splitted[0];
     interface_actions.instream_gatesfromcpu_1 = (void*)(gates+gatesNum*gateSetNum_splitted[0]);
@@ -341,7 +377,7 @@ printf("number of gates: %d\n", gatesNum);
     interface_actions.instream_size_gatesfromcpu_2 = sizeof(gate_kernel_type)*gatesNum*gateSetNum_splitted[2];
     interface_actions.instream_gatesfromcpu_3 = (void*)(gates+gatesNum*(gateSetNum_splitted[0]+gateSetNum_splitted[1]+gateSetNum_splitted[2]));
     interface_actions.instream_size_gatesfromcpu_3 = sizeof(gate_kernel_type)*gatesNum*gateSetNum_splitted[3];
-
+*/
 
 
 
@@ -367,6 +403,10 @@ printf("gates num:%d, in %d sets\n", gatesNum, gateSetNum );
 
     free( trace_fix );
     trace_fix = NULL;
+
+    free( gates_chunked );
+    gates_chunked = NULL;
+
 
 //    double* trace = (double*)malloc(4*gateSetNum*sizeof(double));
 /*
