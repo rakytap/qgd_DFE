@@ -24,7 +24,7 @@ public class MemCommGeneratorKernel extends Kernel {
 @brief ????????????
 @return ??????????
 */
-	public MemCommGeneratorKernel(final KernelParameters parameters, int send_interrupt_signal, int dynamic_address_offset, int burstCountOneShot) {
+	public MemCommGeneratorKernel(final KernelParameters parameters, int send_interrupt_signal, int first_iteration_zero_offset, int burstCountOneShot) {
 		super(parameters);
 
 		DFEVar IterationNum = io.scalarInput("IterationNum", dfeUInt(16) );		
@@ -67,37 +67,6 @@ public class MemCommGeneratorKernel extends Kernel {
 		DFEVar burstNum2issue  = (burstNum_remained <= burstCountOneShot) ? burstNum_remained8 : constant.var(dfeUInt(8), burstCountOneShot);
 
 		interruptSignal = optimization.pipeline( interruptSignal );
-/*
-if (dynamic_address_offset == 0) {
-debug.simPrintf("interruptSignal: %d, %d, %d, %d, %d, %d\n", interruptSignal, iterationCounter, IterationNum, issueMemCommand, burstCount, burstNum2issue);
-}
-*/
-/*
-
-		// Memory controller ticks
-		CounterChain chain = control.count.makeCounterChain();
-		DFEVar memCommandCount = chain.addCounter(10000, 1);
-		DFEVar burstCount = chain.addCounter(burstCountOneShot, 1);
-		DFEVar chunkCount = chain.addCounter(chunkNum, 1);
-
-		DFEVar issueMemCommand = burstCount === 0 & chunkCount === 0;
-
-
-		DFEVar burstNumIssued  = constant.var(dfeUInt(32), burstCountOneShot)*memCommandCount.cast(dfeUInt(32));
-		DFEVar burstNum_tmp    = burstNum - burstNumIssued;
-		DFEVar interruptSignal = burstNum_tmp <= burstCountOneShot;
-		DFEVar burstNum_tmp8 = burstNum_tmp.cast( dfeUInt(8) );
-		burstNum_tmp8 = optimization.pipeline( burstNum_tmp8 );
-		DFEVar burstNum2issue  = interruptSignal ? burstNum_tmp8 : constant.var(dfeUInt(8), burstCountOneShot);
-
-		burstNumIssued  = optimization.pipeline( burstNumIssued );
-		burstNumIssued  = optimization.pipeline( burstNumIssued );
-		burstNumIssued  = optimization.pipeline( burstNumIssued );
-		interruptSignal = optimization.pipeline( interruptSignal );		
-
-*/
-//debug.simPrintf("split signal: %d, %d, %d, %d, %d, %d, %d, %d\n", chunkCount, burstCount, memCommandCount, issueMemCommand, burstNum2issue, burstNumIssued, burstNum, interruptSignal);
-
 
 		// creating custom memory controller
 		DFEStruct cmdStream = LMemCommandStream.getLMemCommandDFEStructType().newInstance(this);
@@ -107,12 +76,24 @@ debug.simPrintf("interruptSignal: %d, %d, %d, %d, %d, %d\n", interruptSignal, it
 		one.setBit (0, 1);
 		one.setOthers(0);
 
-		MemAddr = addrOffset + MemAddr;
-		if (dynamic_address_offset == 1) {
-			DFEVar dynAddrOffset = io.scalarInput("dynAddrOffset", dfeUInt(32) );
-			MemAddr = (iterationCounter > 1) ? MemAddr+dynAddrOffset : MemAddr;
-//debug.simPrintf("Mem Addr: %d, %d, %d\n", MemAddr, dynAddrOffset, iterationCounter);
+		DFEVar dynAddrOffset      = dfeUInt(32).newInstance(this);
+		DFEVar addTodynAddrOffset = iterationCounter === 1 ? addrOffset : constant.var( dfeUInt(32), 0.0);
+		optimization.pushNoPipelining();
+		DFEVar prevdynAddrOffset = iterationCounter === 1 ? constant.var( dfeUInt(32), 0.0) : stream.offset(dynAddrOffset,-1);
+		optimization.pushNoPipelining();
+
+		dynAddrOffset <== prevdynAddrOffset + addTodynAddrOffset;
+
+		
+		if (first_iteration_zero_offset == 1) {
+			MemAddr = (iterationCounter === 1) ? MemAddr : dynAddrOffset + MemAddr;
+			optimization.pushNoPipelining();
 		} 
+		else {
+			MemAddr = dynAddrOffset + MemAddr;
+		}
+
+//debug.simPrintf("Mem Addr: %d\n", MemAddr);
 
 		cmdStream["address"] = MemAddr;
 		cmdStream["size"] = burstNum2issue;
