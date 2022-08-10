@@ -77,10 +77,9 @@ public class qgdDFEKernel extends Kernel {
 @brief ????????????
 @return ??????????
 */
-	public qgdDFEKernel(final KernelParameters parameters, int dimMax, int gates_num, boolean calcTrace) {
+	public qgdDFEKernel(final KernelParameters parameters, int dimMax, int gates_num, boolean calcTrace, boolean verbose) {
 		super(parameters);
 		
-int input_latency = 50;
 
 		// Input
 		DFEComplex x = io.input("x", cplxTypeFix32);
@@ -89,16 +88,13 @@ int input_latency = 50;
 		DFEVar elementNum   = io.scalarInput("elementNum", dfeUInt(32) );
 		
 		DFEVar inputControllerCounter = control.count.simpleCounter(32, elementNum);
-		DFEVar inputController = inputControllerCounter===0;
+		DFEVar inputController = inputControllerCounter < gates_num;
 		
-for (int gate_idx=1; gate_idx<gates_num; gate_idx++) {
-	inputController = inputController | inputControllerCounter===gate_idx*input_latency;
-}		
 		final DFEStruct gate_input = io.input("gates", DFEstructType, inputController);
 		
 List<DFEStruct> gate_list = new ArrayList<DFEStruct>();
 for (int gate_idx=0; gate_idx<gates_num; gate_idx++) {
-	gate_list.add( Reductions.streamHold(gate_input, inputControllerCounter === gate_idx*input_latency) );
+	gate_list.add( Reductions.streamHold(stream.offset(gate_input, gate_idx), inputControllerCounter === 0) );
 }	
 
 		
@@ -106,7 +102,7 @@ for (int gate_idx=0; gate_idx<gates_num; gate_idx++) {
 for (int gate_idx=0; gate_idx<gates_num; gate_idx++) {
 
 	DFEStruct gate = gate_list[gate_idx];
-
+//debug.simPrintf("gate_idx: %d, elements a: %f\n", gate_idx, x.getReal());
 
 		DFEVar controlQubit = gate["ControlQubit"];
 		DFEVar targetQubit  = gate["TargetQubit"];
@@ -145,7 +141,7 @@ for ( int idx=0; idx<12; idx++ ) {
                 // if targetState === 1 than .... otherwise .... 
 
 
-
+//debug.simPrintf("gate_idx: %d, elements b: %f\n", gate_idx, x.getReal());
 
 		DFEComplex transformedAmplitude = (targetState) ?  x_offset*kernelMatrix[2] + x*kernelMatrix[3] : x*kernelMatrix[0] + x_offset*kernelMatrix[1];
 
@@ -161,7 +157,7 @@ for ( int idx=0; idx<12; idx++ ) {
 //debug.simPrintf("%d ControlQubit: %d, %d\n", indexCounter, useControlQubit, ControlQubitState);
 
 
-//debug.simPrintf("elements: %f, %f\n", x.getReal(), y.getReal());
+//debug.simPrintf("gate_idx: %d, elements c: %f, %f, %f, %d, target :%d\n", gate_idx, x.getReal(), transformedAmplitude.getReal(), kernelMatrix[2].getReal(), controlQubit, targetQubit);
 
 }
 
@@ -190,8 +186,12 @@ for ( int idx=0; idx<12; idx++ ) {
 			optimization.pushNoPipelining();
 
 			trace <== prevTrace + addToTrace;
-//debug.simPrintf("trace: %f, %d, %d, %d, %d, %d, %d\n", trace, rowIdx, colIdx, chainIdx, IterationNum, gateSetIdx, (rowIdx>dim-4) & (colIdx===dim-1) & chainIdx===IterationNum-1);
-
+/*
+if (verbose) {
+debug.simPrintf("trace: %f, %d\n", x.getReal(), colIdx===rowIdx);
+debug.simPrintf("trace: %f, %d, %d, %d, %d, %d\n", trace, rowIdx, colIdx, chainIdx, IterationNum, (rowIdx>dim-2) & (colIdx===dim-1) & chainIdx===IterationNum-1);
+}
+*/
 			//output the last 2 elements to have 16bytes on the CPU stream
 			io.output("trace", trace, dataTypeFix64, (rowIdx>=dim-2) & (colIdx===dim-1) & chainIdx===IterationNum-1);
 

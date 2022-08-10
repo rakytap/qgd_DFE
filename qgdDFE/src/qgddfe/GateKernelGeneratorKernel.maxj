@@ -80,7 +80,14 @@ public class GateKernelGeneratorKernel extends Kernel {
 
 
 		CounterChain chain = control.count.makeCounterChain();
-		DFEVar outputControllerCounter = chain.addCounter(chainedGatesNum, 1);
+		DFEVar outputControllerCounter;
+		if ( chainedGatesNum > 1 ) {
+			outputControllerCounter = chain.addCounter(chainedGatesNum, 1);
+		}
+		else {
+			outputControllerCounter = constant.var( dfeUInt(1), 0);
+		}
+
 		if ( gatesNumPerKernel > 1 ) {
 			DFEVar gateInKernelCounter = chain.addCounter(gatesNumPerKernel, 1);		
 		}

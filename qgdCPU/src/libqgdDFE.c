@@ -364,7 +364,7 @@ printf("hhhhhhhhhhhhhhhhhhh %d\n", sizeof(gate_kernel_type)*gatesNum*gateSetNum 
     interface_actions.param_gateSetNum_1 = gateSetNum_splitted[1];
     interface_actions.param_gateSetNum_2 = gateSetNum_splitted[2];
     interface_actions.param_gateSetNum_3 = gateSetNum_splitted[3];            
-              
+       
     interface_actions.instream_gatesfromcpu = gates_chunked;
     interface_actions.instream_size_gatesfromcpu = sizeof(gate_kernel_type)*gatesNum*gateSetNum;
     interface_actions.ticks_GateDataSplitKernel = gatesNum*gateSetNum;
@@ -380,13 +380,16 @@ printf("hhhhhhhhhhhhhhhhhhh %d\n", sizeof(gate_kernel_type)*gatesNum*gateSetNum 
 */
 
 
+    interface_actions.outstream_trace2cpu = trace_fix;
+    interface_actions.outstream_size_trace2cpu = 2*sizeof(int64_t)*gateSetNum;
+    interface_actions.ticks_TraceMergeKernel = 2*gateSetNum_splitted[0];
 
-
+/*
     interface_actions.outstream_trace2cpu_0 = trace_fix;
     interface_actions.outstream_trace2cpu_1 = (void*)(trace_fix+2*gateSetNum_splitted[0]);//trace_fix_arr[0];//(trace_fix+2*gateSetNum_splitted);
     interface_actions.outstream_trace2cpu_2 = (trace_fix+2*(gateSetNum_splitted[0]+gateSetNum_splitted[1]));
     interface_actions.outstream_trace2cpu_3 = (trace_fix+2*(gateSetNum_splitted[0]+gateSetNum_splitted[1]+gateSetNum_splitted[2]));
-            
+  */     
 
     
     //interface_actions.routing_string = "gatesDFEFanout10 -> gatesDFEChain10, gatesDFEFanout20->gatesDFEChain20, gatesDFEFanout21 -> gatesDFEChain21, gatesDFEFanout30 -> gatesDFEChain30, gatesDFEFanout31 -> gatesDFEChain31, gatesDFEFanout32 -> gatesDFEChain32, gatesDFEFanout32 -> gatesDFEChain32";
@@ -395,11 +398,24 @@ printf("hhhhhhhhhhhhhhhhhhh %d\n", sizeof(gate_kernel_type)*gatesNum*gateSetNum 
 
     qgdDFE_run(	engine, &interface_actions);
 printf("gates num:%d, in %d sets\n", gatesNum, gateSetNum );
+/*
+for (size_t jdx=0; jdx<8; jdx++ ) {      
+printf("%f\n", 1.0-((double)trace_fix[jdx]/(1<<30))/256);
+}
+  */  
 
-    
+    for (size_t jdx=0; jdx<gateSetNum_splitted[0]; jdx++ ) {      
+        trace[jdx+0*gateSetNum_splitted[0]] = ((double)trace_fix[8*jdx+4]/(1<<30));
+        trace[jdx+1*gateSetNum_splitted[0]] = ((double)trace_fix[8*jdx+5]/(1<<30));
+        trace[jdx+2*gateSetNum_splitted[0]] = ((double)trace_fix[8*jdx+6]/(1<<30));
+        trace[jdx+3*gateSetNum_splitted[0]] = ((double)trace_fix[8*jdx+7]/(1<<30));
+    }
+
+/*
     for (size_t jdx=0; jdx<gateSetNum; jdx++ ) {      
         trace[jdx] = ((double)trace_fix[2*jdx+1]/(1<<30));
     }
+*/
 
     free( trace_fix );
     trace_fix = NULL;

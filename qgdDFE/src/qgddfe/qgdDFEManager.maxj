@@ -40,8 +40,9 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 	int dim = 1024;
 	int dim_over_2 = dim/2;
 	int burstCountOneShot = 100;
-	static int chainedGatesNum = 24;
-	static int gatesNumPerKernel = 1;	
+	static int chainedGatesNum = 4;
+	static int gatesNumPerKernel = 11;
+	static int totalGatesInChain = chainedGatesNum*gatesNumPerKernel;
 
 /**
 @brief ????????????
@@ -113,9 +114,9 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 		super(params);	
 
 		// parameter to add additional registers for SLR crossing of data streams
-		int regPerX = 4;
-		int regPerX_LMEM = 5;		
-		int regPerX_CPU = 4;
+		int regPerX = 5;
+		int regPerX_LMEM = 6;		
+		int regPerX_CPU = 5;
 		
 //pushFanoutLimit(24);
 		
@@ -174,6 +175,16 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 		DFELink inputSplitterStream = inputSplitter.getInput();
 		inputSplitterStream.setAdditionalRegisters(regPerX);	
 		inputSplitterStream <== fromCPU;
+
+
+		KernelBlock traceMergeKernel = addKernel(new TraceMergeKernel(makeKernelParameters("TraceMergeKernel") ) );
+		traceMergeKernel.setClock( slowClock );
+		DFELink mergedTrace = traceMergeKernel.getOutput( "trace" );
+		mergedTrace.setAdditionalRegisters(regPerX);
+		DFELink trace2cpu = addStreamToCPU("trace2cpu");
+		trace2cpu.setAdditionalRegisters(regPerX);
+		trace2cpu <== mergedTrace;
+
 		popRegion();				
 		
 		for( int idx=0; idx<4; idx++) {
@@ -243,7 +254,7 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 			
 			
 			for (int gate_idx=0; gate_idx<chainedGatesNum; gate_idx++) {
-				kernel_list.add( addKernel(new qgdDFEKernel(makeKernelParameters("qgdDFEKernel_"+String.valueOf(idx)+"_"+String.valueOf(gate_idx)), dim, gatesNumPerKernel, gate_idx==chainedGatesNum-1)) );
+				kernel_list.add( addKernel(new qgdDFEKernel(makeKernelParameters("qgdDFEKernel_"+String.valueOf(idx)+"_"+String.valueOf(gate_idx)), dim, gatesNumPerKernel, gate_idx==chainedGatesNum-1, idx==0)) );
 			}
 		
 
@@ -284,13 +295,22 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 					y.setAdditionalRegisters(regPerX_LMEM);
                 			outA <== y;
 
-					DFELink trace2cpu = addStreamToCPU("trace2cpu_"+String.valueOf(idx));//, StreamMode.LOW_LATENCY_ENABLED);
-					trace2cpu.setAdditionalRegisters(regPerX_CPU);
+					DFELink trace2merge = traceMergeKernel.getInput( "trace_"+String.valueOf(idx));
+					trace2merge.setAdditionalRegisters(regPerX_CPU);
+					//DFELink trace2cpu = addStreamToCPU("trace2cpu_"+String.valueOf(idx));//, StreamMode.LOW_LATENCY_ENABLED);
+					//trace2cpu.setAdditionalRegisters(regPerX_CPU);
 
 					DFELink trace = kernel_list[idx*chainedGatesNum+gate_idx].getOutput("trace");				
 					trace.setAdditionalRegisters(regPerX);
 
-					trace2cpu <== trace;
+					popRegion();
+					trace = slrCrossingChainWithClock("trace2cpu", Integer.toString(idx), trace, idx, -1, regPerX, this, slowClock);		
+					//gatesFromCPU = slrCrossingChain("gatesfromcpu", Integer.toString(idx), gatesFromCPU, -1, idx, regPerX, this);					
+					pushNamedRegion(named_region_list[idx]);
+
+
+					trace2merge <== trace;
+					//trace2cpu <== trace;
 				}
 
 			}							
@@ -336,7 +356,7 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 
 				if( gate_idx==chainedGatesNum-1) {
 					ei.setScalar("qgdDFEKernel_"+String.valueOf(idx)+"_"+String.valueOf(gate_idx), "IterationNum", gatesNum/chainedGatesNum/gatesNumPerKernel);
-					ei.setStream("trace2cpu_"+String.valueOf(idx), CPUTypes.VOID, 16*gateSetNum_list[idx] );
+					//ei.setStream("trace2cpu_"+String.valueOf(idx), CPUTypes.VOID, 16*gateSetNum_list[idx] );
 					//ei.setStream("trace2cpu_"+String.valueOf(idx), CPUTypes.VOID, 16*gateSetNum );
 				}
 			}
@@ -427,6 +447,9 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 	            "inputfromcpuFanout10 -> inputfromcpuChain10, " +
 	            "inputfromcpuFanout20->inputfromcpuChain20, inputfromcpuFanout21 -> inputfromcpuChain21, " +
 	            "inputfromcpuFanout30 -> inputfromcpuChain30, inputfromcpuFanout31 -> inputfromcpuChain31, inputfromcpuFanout32 -> inputfromcpuChain32, " +
+                    "trace2cpuFanout10 -> trace2cpuChain10, " +
+	            "trace2cpuFanout20->trace2cpuChain20, trace2cpuFanout21 -> trace2cpuChain21, " +
+	            "trace2cpuFanout30 -> trace2cpuChain30, trace2cpuFanout31 -> trace2cpuChain31, trace2cpuFanout32 -> trace2cpuChain32, " +
 	            "inputSplitFanout -> fromFanout_0, inputSplitFanout -> fromFanout_1, inputSplitFanout -> fromFanout_2, inputSplitFanout -> fromFanout_3");		
 
 		return ei ;
@@ -491,6 +514,9 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 	            "inputfromcpuFanout10 -> inputfromcpuChain10, " +
 	            "inputfromcpuFanout20->inputfromcpuChain20, inputfromcpuFanout21 -> inputfromcpuChain21, " +
 	            "inputfromcpuFanout30 -> inputfromcpuChain30, inputfromcpuFanout31 -> inputfromcpuChain31, inputfromcpuFanout32 -> inputfromcpuChain32, " +
+	            "trace2cpuFanout10 -> trace2cpuChain10, " +
+	            "trace2cpuFanout20->trace2cpuChain20, trace2cpuFanout21 -> trace2cpuChain21, " +
+	            "trace2cpuFanout30 -> trace2cpuChain30, trace2cpuFanout31 -> trace2cpuChain31, trace2cpuFanout32 -> trace2cpuChain32, " +
 	            "inputSplitFanout -> fromFanout_0, inputSplitFanout -> fromFanout_1, inputSplitFanout -> fromFanout_2, inputSplitFanout -> fromFanout_3");				
 
 		ei.ignoreAll(Direction.IN_OUT);
@@ -608,7 +634,7 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 //		manager.createSlicInterface(qgdDFEManager.interfaceRead("readLMem"));
 //		manager.getBuildManager().setParameter(MaxCompilerBuildConf.build.clean_build_directory, false); //problematic for successful builds, but failed builds which have a timing score will get deleted...can manually delete dcp checkpoint files instead
 		
-		manager.addMaxFileConstant("CHAINED_GATES_NUM", manager.chainedGatesNum*manager.gatesNumPerKernel);	
+		manager.addMaxFileConstant("CHAINED_GATES_NUM", qgdDFEManager.totalGatesInChain);	
 		
 		manager.build();
 	}
