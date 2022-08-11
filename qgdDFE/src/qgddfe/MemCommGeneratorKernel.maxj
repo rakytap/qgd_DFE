@@ -24,13 +24,12 @@ public class MemCommGeneratorKernel extends Kernel {
 @brief ????????????
 @return ??????????
 */
-	public MemCommGeneratorKernel(final KernelParameters parameters, int send_interrupt_signal, int first_iteration_zero_offset, int burstCountOneShot) {
+	public MemCommGeneratorKernel(final KernelParameters parameters, int send_interrupt_signal, int first_iteration_zero_offset, int burstCountOneShot, boolean verbose) {
 		super(parameters);
 
 		DFEVar IterationNum = io.scalarInput("IterationNum", dfeUInt(16) );		
 		DFEVar burstNum = io.scalarInput("burstNum", dfeUInt(32) );
 		DFEVar chunkNum = io.scalarInput("chunkNum",  dfeUInt(8)); // number of chunks in one burst
-		DFEVar addrOffset = io.scalarInput("addrOffset", dfeUInt(32) );	
 
 
 		SMIO MCGSM = addStateMachine("MCG", new MemCommandGenStateMachine( this, burstCountOneShot));
@@ -38,9 +37,11 @@ public class MemCommGeneratorKernel extends Kernel {
 		MCGSM.connectInput("burstNum", burstNum);
 		MCGSM.connectInput("IterationNum", IterationNum);
 
+		//DFEVar chunkCount        = MCGSM.getOutput("chunkCount");
 		DFEVar burstCount        = MCGSM.getOutput("burstCount");
 		DFEVar issueMemCommand   = MCGSM.getOutput("issueMemCommand");
 		DFEVar iterationCounter   = MCGSM.getOutput("iterationCounter");
+		DFEVar dynAddrOffset    = MCGSM.getOutput("dynAddrOffset");
 //debug.simPrintf("split signal: %d, %d, %d\n", burstCount, burstNum, iterationCounter);
 		issueMemCommand = optimization.pipeline( issueMemCommand);
 		issueMemCommand = optimization.pipeline( issueMemCommand);
@@ -76,23 +77,20 @@ public class MemCommGeneratorKernel extends Kernel {
 		one.setBit (0, 1);
 		one.setOthers(0);
 
-		DFEVar dynAddrOffset      = dfeUInt(32).newInstance(this);
-		DFEVar addTodynAddrOffset = iterationCounter === 1 ? addrOffset : constant.var( dfeUInt(32), 0.0);
-		optimization.pushNoPipelining();
-		DFEVar prevdynAddrOffset = iterationCounter === 1 ? constant.var( dfeUInt(32), 0.0) : stream.offset(dynAddrOffset,-1);
-		optimization.pushNoPipelining();
-
-		dynAddrOffset <== prevdynAddrOffset + addTodynAddrOffset;
-
-		
+		dynAddrOffset = dynAddrOffset + burstNum;
 		if (first_iteration_zero_offset == 1) {
 			MemAddr = (iterationCounter === 1) ? MemAddr : dynAddrOffset + MemAddr;
 			optimization.pushNoPipelining();
 		} 
 		else {
 			MemAddr = dynAddrOffset + MemAddr;
+			optimization.pushNoPipelining();
 		}
-
+/*
+if (verbose) {
+debug.simPrintf("counters: %d, %d, %d, %d, %d\n", burstCount, iterationCounter, dynAddrOffset, MemAddr, first_iteration_zero_offset);
+}
+*/
 //debug.simPrintf("Mem Addr: %d\n", MemAddr);
 
 		cmdStream["address"] = MemAddr;

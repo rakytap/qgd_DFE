@@ -40,8 +40,8 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 	int dim = 1024;
 	int dim_over_2 = dim/2;
 	int burstCountOneShot = 100;
-	static int chainedGatesNum = 2;
-	static int gatesNumPerKernel = 4;
+	static int chainedGatesNum = 4;
+	static int gatesNumPerKernel = 11;
 	static int totalGatesInChain = chainedGatesNum*gatesNumPerKernel;
 
 /**
@@ -206,13 +206,13 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 
 
 	                /////////////////// CPU - LMEM communication ///////////////////////
-			mcg_cpu2lmem_kernel_list.add( addKernel(new MemCommGeneratorKernel(makeKernelParameters("CPU2LMEMCommGenKernel_"+String.valueOf(idx)), 1, 0, burstCountOneShot)) );
+			mcg_cpu2lmem_kernel_list.add( addKernel(new MemCommGeneratorKernel(makeKernelParameters("CPU2LMEMCommGenKernel_"+String.valueOf(idx)), 1, 1, burstCountOneShot, false)) );
 //			mcg_lmem2cpu_kernel_list.add( addKernel(new MemCommGeneratorKernel(makeKernelParameters("LMEM2CPUCommGenKernel_"+String.valueOf(idx)), 1, 0, burstCountOneShot)) );
 			mcg_cpu2lmem_kernel_list[idx].setClock( slowClock );
 
 
-			mcg_fromlmem_kernel_list.add( addKernel(new MemCommGeneratorKernel(makeKernelParameters("FromLMEMCommGenKernel_"+String.valueOf(idx)), 0, 1, burstCountOneShot)) );
-			mcg_tolmem_kernel_list.add( addKernel(new MemCommGeneratorKernel(makeKernelParameters("ToLMEMCommGenKernel_"+String.valueOf(idx)), 1, 0, burstCountOneShot)) );
+			mcg_fromlmem_kernel_list.add( addKernel(new MemCommGeneratorKernel(makeKernelParameters("FromLMEMCommGenKernel_"+String.valueOf(idx)), 0, 1, burstCountOneShot, idx==0)) );
+			mcg_tolmem_kernel_list.add( addKernel(new MemCommGeneratorKernel(makeKernelParameters("ToLMEMCommGenKernel_"+String.valueOf(idx)), 1, 0, burstCountOneShot, idx==0)) );
 			mcg_fromlmem_kernel_list[idx].setClock( memoryClock );
 			mcg_tolmem_kernel_list[idx].setClock( memoryClock );
 
@@ -388,13 +388,13 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 			ei.setScalar("FromLMEMCommGenKernel_"+String.valueOf(idx), "IterationNum", gatesNum/chainedGatesNum/gatesNumPerKernel);
 			ei.setScalar("FromLMEMCommGenKernel_"+String.valueOf(idx), "chunkNum", chunks/LMEMtimeScale);
 			ei.setScalar("FromLMEMCommGenKernel_"+String.valueOf(idx), "burstNum", burstNum);
-			ei.setScalar("FromLMEMCommGenKernel_"+String.valueOf(idx), "addrOffset", burstNum);
+			//ei.setScalar("FromLMEMCommGenKernel_"+String.valueOf(idx), "addrOffset", burstNum);
 			//ei.setScalar("FromLMEMCommGenKernel_"+String.valueOf(idx), "dynAddrOffset", burstNum);
 
 			ei.setScalar("ToLMEMCommGenKernel_"+String.valueOf(idx), "IterationNum", gatesNum/chainedGatesNum/gatesNumPerKernel);
 			ei.setScalar("ToLMEMCommGenKernel_"+String.valueOf(idx), "chunkNum", chunks/LMEMtimeScale);
 			ei.setScalar("ToLMEMCommGenKernel_"+String.valueOf(idx), "burstNum", burstNum);
-			ei.setScalar("ToLMEMCommGenKernel_"+String.valueOf(idx), "addrOffset", burstNum);
+			//ei.setScalar("ToLMEMCommGenKernel_"+String.valueOf(idx), "addrOffset", burstNum);
 			//ei.setScalar("ToLMEMCommGenKernel_"+String.valueOf(idx), "dynAddrOffset", burstNum);
 		}
 
@@ -492,7 +492,7 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 			ei.setScalar("CPU2LMEMCommGenKernel_"+String.valueOf(idx), "IterationNum", ei.addConstant(1l));
 			ei.setScalar("CPU2LMEMCommGenKernel_"+String.valueOf(idx), "chunkNum", chunks);
 			ei.setScalar("CPU2LMEMCommGenKernel_"+String.valueOf(idx), "burstNum", burstNum);
-			ei.setScalar("CPU2LMEMCommGenKernel_"+String.valueOf(idx), "addrOffset", zero);
+			//ei.setScalar("CPU2LMEMCommGenKernel_"+String.valueOf(idx), "addrOffset", zero);
 		
 
 

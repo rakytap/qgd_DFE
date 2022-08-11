@@ -23,9 +23,11 @@ class MemCommandGenStateMachine extends KernelStateMachine {
 	}
 
 	// I/O
+	//private final DFEsmOutput oChunkCount;
 	private final DFEsmOutput oBurstCount;
 	private final DFEsmOutput oIssueMemCommand;
 	private final DFEsmOutput oIterationCounter;
+	private final DFEsmOutput oDynAddrOffset;
 
 
 	private final DFEsmInput ChunkNum;
@@ -38,7 +40,7 @@ class MemCommandGenStateMachine extends KernelStateMachine {
 	private final DFEsmStateValue burstCounterWrapped;
 	private final DFEsmStateValue burstCounter;
 	private final DFEsmStateValue iterationCounter;
-	//private final DFEsmStateValue gateSetCounter;
+	private final DFEsmStateValue dynAddrOffset;
 	private final DFEsmStateValue issueMemCommand;
 
 
@@ -50,9 +52,11 @@ class MemCommandGenStateMachine extends KernelStateMachine {
 		super(owner);
 
 		// I/O
+		//oChunkCount       = io.output("chunkCount", dfeUInt(8));
 		oBurstCount       = io.output("burstCount", dfeUInt(32));
 		oIssueMemCommand  = io.output("issueMemCommand", dfeUInt(1));
 		oIterationCounter = io.output("iterationCounter", dfeUInt(16));
+		oDynAddrOffset   = io.output("dynAddrOffset", dfeUInt(32));
 
 		ChunkNum      = io.input("chunkNum", dfeUInt(8));
 		burstNum      = io.input("burstNum", dfeUInt(32));
@@ -64,7 +68,7 @@ class MemCommandGenStateMachine extends KernelStateMachine {
 		burstCounterWrapped = state.value(dfeUInt(8), 1);
 		burstCounter        = state.value(dfeUInt(32), 0);
 		iterationCounter    = state.value(dfeUInt(16), 1);
-		//gateSetCounter      = state.value(dfeUInt(16), 1);
+		dynAddrOffset      = state.value(dfeUInt(32), 0);
 		issueMemCommand     = state.value(dfeUInt(1), 1);
 
     
@@ -83,6 +87,7 @@ class MemCommandGenStateMachine extends KernelStateMachine {
 				}
 				ELSE {
 					iterationCounter.next <== 1;
+					dynAddrOffset.next <== dynAddrOffset + burstNum;
 				}
 
 				burstCounterWrapped.next <== 1;
@@ -147,9 +152,11 @@ class MemCommandGenStateMachine extends KernelStateMachine {
 		}
 */
 
+		//oChunkCount <== chunkCounterWrapped;
 		oBurstCount <== burstCounter;
 		oIssueMemCommand <== issueMemCommand;
 		oIterationCounter <== iterationCounter;
+		oDynAddrOffset <== dynAddrOffset;
 
 	}
 }
