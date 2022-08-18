@@ -287,7 +287,7 @@ int calcqgdKernelDFE_oneShot(size_t dim, gate_kernel_type* gates, int gatesNum, 
     }    
   */  
     //int gateSetNum_splitted = gateSetNum/4;
-printf("%d\n", gateSetNum );
+//printf("gates set num: %d\n", gateSetNum );
     int gateSetNum_splitted[4];
     int gateSetNum_splitted0 = gateSetNum/4;
     int gateSetNum_oveflow = gateSetNum % 4;
@@ -298,7 +298,7 @@ printf("%d\n", gateSetNum );
         else {
             gateSetNum_splitted[idx] = gateSetNum_splitted0;
         }
-printf("%d\n", gateSetNum_splitted[idx] );
+//printf("splitted gate set num: %d\n", gateSetNum_splitted[idx] );
     }
   
     size_t element_num = dim*dim;
@@ -315,41 +315,98 @@ printf("%d\n", gateSetNum_splitted[idx] );
 
 
 //int targetQubit = 2;
-
+/*
 printf("element num:%d, control qbit: %d, target qbit: %d\n", element_num, gates->control_qbit, gates->target_qbit);
 printf("size of gate_kernel_type %d bytes\n", sizeof(gate_kernel_type));
 printf("tickcount: %lu\n", tick_counts[0] );
 printf("number of gates: %d\n", gatesNum);
+*/
+    // numner og gatechain iterations over a single gateSet
+    int iterationNum = gatesNum/get_chained_gates_num();
+//    printf("iteration num: %d\n", iterationNum );
+
 
     // organize input gates into 32 bit chunks
     void* gates_chunked = malloc(sizeof(gate_kernel_type)*gatesNum*gateSetNum);
-printf("hhhhhhhhhhhhhhhhhhh %d\n", sizeof(gate_kernel_type)*gatesNum*gateSetNum );
-    for( int idx=0; idx<gatesNum*gateSetNum_splitted[0]; idx++ ) {
+//printf("hhhhhhhhhhhhhhhhhhh %d\n", sizeof(gate_kernel_type)*gatesNum*gateSetNum );
+/*
+    for( int gateSet_idx=0; gateSet_idx<gateSetNum_splitted[0]; gateSet_idx++ ) {
+        for( int iterationNum_idx=0; iterationNum_idx<iterationNum; iterationNum_idx++ ) {
+            for( int gate_idx=0; gate_idx<get_chained_gates_num(); gate_idx++ ) {
 
-        void* gates_0 = (void*)&gates[idx + 0*gatesNum*gateSetNum_splitted[0]];
-        void* gates_1 = (void*)&gates[idx + 1*gatesNum*gateSetNum_splitted[0]];
-        void* gates_2 = (void*)&gates[idx + 2*gatesNum*gateSetNum_splitted[0]];
-        void* gates_3 = (void*)&gates[idx + 3*gatesNum*gateSetNum_splitted[0]];
+                int idx_orig    = gateSet_idx*gatesNum + iterationNum_idx*get_chained_gates_num() + gate_idx;
+                int idx_chunked = gateSet_idx*gatesNum + iterationNum_idx*get_chained_gates_num() + gate_idx;
+ 
+                void* gates_0 = (void*)&gates[idx_orig + 0*gatesNum*gateSetNum_splitted[0]];
+                void* gates_1 = (void*)&gates[idx_orig + 1*gatesNum*gateSetNum_splitted[0]];
+                void* gates_2 = (void*)&gates[idx_orig + 2*gatesNum*gateSetNum_splitted[0]];
+                void* gates_3 = (void*)&gates[idx_orig + 3*gatesNum*gateSetNum_splitted[0]];
 
-        memcpy( gates_chunked + idx*64 + 0, gates_0, 4 );
-        memcpy( gates_chunked + idx*64 + 4, gates_1, 4 );
-        memcpy( gates_chunked + idx*64 + 8, gates_2, 4 );
-        memcpy( gates_chunked + idx*64 + 12, gates_3, 4 );
+                memcpy( gates_chunked + idx_chunked*64 + 0, gates_0, 4 );
+                memcpy( gates_chunked + idx_chunked*64 + 4, gates_1, 4 );
+                memcpy( gates_chunked + idx_chunked*64 + 8, gates_2, 4 );
+                memcpy( gates_chunked + idx_chunked*64 + 12, gates_3, 4 );
 
-        memcpy( gates_chunked + idx*64 + 16, gates_0+4, 4 );
-        memcpy( gates_chunked + idx*64 + 20, gates_1+4, 4 );
-        memcpy( gates_chunked + idx*64 + 24, gates_2+4, 4 );
-        memcpy( gates_chunked + idx*64 + 28, gates_3+4, 4 );
+                memcpy( gates_chunked + idx_chunked*64 + 16, gates_0+4, 4 );
+                memcpy( gates_chunked + idx_chunked*64 + 20, gates_1+4, 4 );
+                memcpy( gates_chunked + idx_chunked*64 + 24, gates_2+4, 4 );
+                memcpy( gates_chunked + idx_chunked*64 + 28, gates_3+4, 4 );
 
-        memcpy( gates_chunked + idx*64 + 32, gates_0+8, 4 );
-        memcpy( gates_chunked + idx*64 + 36, gates_1+8, 4 );
-        memcpy( gates_chunked + idx*64 + 40, gates_2+8, 4 );
-        memcpy( gates_chunked + idx*64 + 44, gates_3+8, 4 );
+                memcpy( gates_chunked + idx_chunked*64 + 32, gates_0+8, 4 );
+                memcpy( gates_chunked + idx_chunked*64 + 36, gates_1+8, 4 );
+                memcpy( gates_chunked + idx_chunked*64 + 40, gates_2+8, 4 );
+                memcpy( gates_chunked + idx_chunked*64 + 44, gates_3+8, 4 );
 
-        memcpy( gates_chunked + idx*64 + 48, gates_0+12, 4 );
-        memcpy( gates_chunked + idx*64 + 52, gates_1+12, 4 );
-        memcpy( gates_chunked + idx*64 + 56, gates_2+12, 4 );
-        memcpy( gates_chunked + idx*64 + 60, gates_3+12, 4 );
+                memcpy( gates_chunked + idx_chunked*64 + 48, gates_0+12, 4 );
+                memcpy( gates_chunked + idx_chunked*64 + 52, gates_1+12, 4 );
+                memcpy( gates_chunked + idx_chunked*64 + 56, gates_2+12, 4 );
+                memcpy( gates_chunked + idx_chunked*64 + 60, gates_3+12, 4 );
+
+
+            }
+        }
+    }
+*/
+
+    int idx_chunked = 0;
+    for( int iterationNum_idx=0; iterationNum_idx<iterationNum; iterationNum_idx++ ) {
+        for( int gateSet_idx=0; gateSet_idx<gateSetNum_splitted[0]; gateSet_idx++ ) {
+            for( int gate_idx=0; gate_idx<get_chained_gates_num(); gate_idx++ ) {
+
+                int idx_orig    = gateSet_idx*gatesNum + iterationNum_idx*get_chained_gates_num() + gate_idx;
+                //int idx_chunked = gateSet_idx*gatesNum + iterationNum_idx*get_chained_gates_num() + gate_idx;
+
+//printf("%d, %d\n", idx_chunked, idx_orig);
+ 
+                void* gates_0 = (void*)&gates[idx_orig + 0*gatesNum*gateSetNum_splitted[0]];
+                void* gates_1 = (void*)&gates[idx_orig + 1*gatesNum*gateSetNum_splitted[0]];
+                void* gates_2 = (void*)&gates[idx_orig + 2*gatesNum*gateSetNum_splitted[0]];
+                void* gates_3 = (void*)&gates[idx_orig + 3*gatesNum*gateSetNum_splitted[0]];
+
+                memcpy( gates_chunked + idx_chunked*64 + 0, gates_0, 4 );
+                memcpy( gates_chunked + idx_chunked*64 + 4, gates_1, 4 );
+                memcpy( gates_chunked + idx_chunked*64 + 8, gates_2, 4 );
+                memcpy( gates_chunked + idx_chunked*64 + 12, gates_3, 4 );
+
+                memcpy( gates_chunked + idx_chunked*64 + 16, gates_0+4, 4 );
+                memcpy( gates_chunked + idx_chunked*64 + 20, gates_1+4, 4 );
+                memcpy( gates_chunked + idx_chunked*64 + 24, gates_2+4, 4 );
+                memcpy( gates_chunked + idx_chunked*64 + 28, gates_3+4, 4 );
+
+                memcpy( gates_chunked + idx_chunked*64 + 32, gates_0+8, 4 );
+                memcpy( gates_chunked + idx_chunked*64 + 36, gates_1+8, 4 );
+                memcpy( gates_chunked + idx_chunked*64 + 40, gates_2+8, 4 );
+                memcpy( gates_chunked + idx_chunked*64 + 44, gates_3+8, 4 );
+
+                memcpy( gates_chunked + idx_chunked*64 + 48, gates_0+12, 4 );
+                memcpy( gates_chunked + idx_chunked*64 + 52, gates_1+12, 4 );
+                memcpy( gates_chunked + idx_chunked*64 + 56, gates_2+12, 4 );
+                memcpy( gates_chunked + idx_chunked*64 + 60, gates_3+12, 4 );
+
+                idx_chunked++;
+
+            }
+        }
     }
 
 

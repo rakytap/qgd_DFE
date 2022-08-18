@@ -122,7 +122,7 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 		
 		
 		//getLMemGlobalConfig().setMemoryFrequency(LMemFrequency.LMEM_1200MHZ);
-		getLMemGlobalConfig().setMcpFrequency( 250 ); //220
+		getLMemGlobalConfig().setMcpFrequency( 260 ); //220
 		
 		List<XilinxAlveoU250Manager.NamedRegion> named_region_list = new ArrayList<XilinxAlveoU250Manager.NamedRegion>();
 		named_region_list.add( XilinxAlveoU250Manager.NamedRegion.SLR0 );
@@ -212,7 +212,7 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 
 
 			mcg_fromlmem_kernel_list.add( addKernel(new MemCommGeneratorKernel(makeKernelParameters("FromLMEMCommGenKernel_"+String.valueOf(idx)), 0, 1, burstCountOneShot, idx==0)) );
-			mcg_tolmem_kernel_list.add( addKernel(new MemCommGeneratorKernel(makeKernelParameters("ToLMEMCommGenKernel_"+String.valueOf(idx)), 1, 0, burstCountOneShot, idx==0)) );
+			mcg_tolmem_kernel_list.add( addKernel(new MemCommGeneratorKernel(makeKernelParameters("ToLMEMCommGenKernel_"+String.valueOf(idx)), 1, 0, burstCountOneShot, false)) );
 			mcg_fromlmem_kernel_list[idx].setClock( memoryClock );
 			mcg_tolmem_kernel_list[idx].setClock( memoryClock );
 
@@ -356,6 +356,7 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 
 				if( gate_idx==chainedGatesNum-1) {
 					ei.setScalar("qgdDFEKernel_"+String.valueOf(idx)+"_"+String.valueOf(gate_idx), "IterationNum", gatesNum/chainedGatesNum/gatesNumPerKernel);
+					ei.setScalar("qgdDFEKernel_"+String.valueOf(idx)+"_"+String.valueOf(gate_idx), "GateSetNum", gateSetNum_list[idx]);
 					//ei.setStream("trace2cpu_"+String.valueOf(idx), CPUTypes.VOID, 16*gateSetNum_list[idx] );
 					//ei.setStream("trace2cpu_"+String.valueOf(idx), CPUTypes.VOID, 16*gateSetNum );
 				}
@@ -385,13 +386,15 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 
 		//InterfaceParam ticksMax = burstNum*chunks*gatesNum*gateSetNum/chainedGatesNum;
 		for( int idx=0; idx<4; idx++) {
-			ei.setScalar("FromLMEMCommGenKernel_"+String.valueOf(idx), "IterationNum", gatesNum/chainedGatesNum/gatesNumPerKernel);
+//			ei.setScalar("FromLMEMCommGenKernel_"+String.valueOf(idx), "IterationNum", gatesNum/chainedGatesNum/gatesNumPerKernel);
+			ei.setScalar("FromLMEMCommGenKernel_"+String.valueOf(idx), "dynAddrOffsetMax", burstNum*(gateSetNum_list[idx]-1));
 			ei.setScalar("FromLMEMCommGenKernel_"+String.valueOf(idx), "chunkNum", chunks/LMEMtimeScale);
 			ei.setScalar("FromLMEMCommGenKernel_"+String.valueOf(idx), "burstNum", burstNum);
 			//ei.setScalar("FromLMEMCommGenKernel_"+String.valueOf(idx), "addrOffset", burstNum);
 			//ei.setScalar("FromLMEMCommGenKernel_"+String.valueOf(idx), "dynAddrOffset", burstNum);
 
-			ei.setScalar("ToLMEMCommGenKernel_"+String.valueOf(idx), "IterationNum", gatesNum/chainedGatesNum/gatesNumPerKernel);
+//			ei.setScalar("ToLMEMCommGenKernel_"+String.valueOf(idx), "IterationNum", gatesNum/chainedGatesNum/gatesNumPerKernel);
+			ei.setScalar("ToLMEMCommGenKernel_"+String.valueOf(idx), "dynAddrOffsetMax", burstNum*(gateSetNum_list[idx]-1));
 			ei.setScalar("ToLMEMCommGenKernel_"+String.valueOf(idx), "chunkNum", chunks/LMEMtimeScale);
 			ei.setScalar("ToLMEMCommGenKernel_"+String.valueOf(idx), "burstNum", burstNum);
 			//ei.setScalar("ToLMEMCommGenKernel_"+String.valueOf(idx), "addrOffset", burstNum);
@@ -489,7 +492,8 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 		InterfaceParam ticksMax = burstNum*chunks;
 		
 		for( int idx=0; idx<4; idx++) {
-			ei.setScalar("CPU2LMEMCommGenKernel_"+String.valueOf(idx), "IterationNum", ei.addConstant(1l));
+//			ei.setScalar("CPU2LMEMCommGenKernel_"+String.valueOf(idx), "IterationNum", ei.addConstant(1l));
+			ei.setScalar("CPU2LMEMCommGenKernel_"+String.valueOf(idx), "dynAddrOffsetMax", ei.addConstant(0l));
 			ei.setScalar("CPU2LMEMCommGenKernel_"+String.valueOf(idx), "chunkNum", chunks);
 			ei.setScalar("CPU2LMEMCommGenKernel_"+String.valueOf(idx), "burstNum", burstNum);
 			//ei.setScalar("CPU2LMEMCommGenKernel_"+String.valueOf(idx), "addrOffset", zero);

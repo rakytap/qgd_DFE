@@ -27,7 +27,8 @@ public class MemCommGeneratorKernel extends Kernel {
 	public MemCommGeneratorKernel(final KernelParameters parameters, int send_interrupt_signal, int first_iteration_zero_offset, int burstCountOneShot, boolean verbose) {
 		super(parameters);
 
-		DFEVar IterationNum = io.scalarInput("IterationNum", dfeUInt(16) );		
+		//DFEVar IterationNum = io.scalarInput("IterationNum", dfeUInt(16) );		
+		DFEVar DynAddrOffsetMax = io.scalarInput("dynAddrOffsetMax", dfeUInt(32) );		
 		DFEVar burstNum = io.scalarInput("burstNum", dfeUInt(32) );
 		DFEVar chunkNum = io.scalarInput("chunkNum",  dfeUInt(8)); // number of chunks in one burst
 
@@ -35,13 +36,14 @@ public class MemCommGeneratorKernel extends Kernel {
 		SMIO MCGSM = addStateMachine("MCG", new MemCommandGenStateMachine( this, burstCountOneShot));
 		MCGSM.connectInput("chunkNum", chunkNum);
 		MCGSM.connectInput("burstNum", burstNum);
-		MCGSM.connectInput("IterationNum", IterationNum);
+		//MCGSM.connectInput("IterationNum", IterationNum);
+		MCGSM.connectInput("dynAddrOffsetMax", DynAddrOffsetMax);
 
 		//DFEVar chunkCount        = MCGSM.getOutput("chunkCount");
 		DFEVar burstCount        = MCGSM.getOutput("burstCount");
 		DFEVar issueMemCommand   = MCGSM.getOutput("issueMemCommand");
-		DFEVar iterationCounter   = MCGSM.getOutput("iterationCounter");
-		DFEVar dynAddrOffset    = MCGSM.getOutput("dynAddrOffset");
+		DFEVar iterationCounter  = MCGSM.getOutput("iterationCounter");
+		DFEVar dynAddrOffset     = MCGSM.getOutput("dynAddrOffset");
 //debug.simPrintf("split signal: %d, %d, %d\n", burstCount, burstNum, iterationCounter);
 		issueMemCommand = optimization.pipeline( issueMemCommand);
 		issueMemCommand = optimization.pipeline( issueMemCommand);
@@ -58,11 +60,12 @@ public class MemCommGeneratorKernel extends Kernel {
 		
 		DFEVar interruptSignal;
 		if ( send_interrupt_signal == 1 ) {
-			interruptSignal = (burstNum_remained <= burstCountOneShot) & (iterationCounter === IterationNum); 
+			interruptSignal = (burstNum_remained <= burstCountOneShot);// & (iterationCounter === IterationNum); 
 		}
 		else {
 			interruptSignal = constant.var(dfeUInt(1), 0);
 		}
+
 		DFEVar burstNum_remained8 = burstNum_remained.cast( dfeUInt(8) );
 		burstNum_remained8 = optimization.pipeline( burstNum_remained8 );
 		DFEVar burstNum2issue  = (burstNum_remained <= burstCountOneShot) ? burstNum_remained8 : constant.var(dfeUInt(8), burstCountOneShot);

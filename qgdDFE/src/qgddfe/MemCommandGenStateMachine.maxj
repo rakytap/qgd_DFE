@@ -32,7 +32,8 @@ class MemCommandGenStateMachine extends KernelStateMachine {
 
 	private final DFEsmInput ChunkNum;
 	private final DFEsmInput burstNum;
-	private final DFEsmInput IterationNum;
+	//private final DFEsmInput IterationNum;
+	private final DFEsmInput DynAddrOffsetMax;
 
 
 	// State
@@ -58,9 +59,10 @@ class MemCommandGenStateMachine extends KernelStateMachine {
 		oIterationCounter = io.output("iterationCounter", dfeUInt(16));
 		oDynAddrOffset   = io.output("dynAddrOffset", dfeUInt(32));
 
-		ChunkNum      = io.input("chunkNum", dfeUInt(8));
-		burstNum      = io.input("burstNum", dfeUInt(32));
-		IterationNum  = io.input("IterationNum", dfeUInt(16));
+		ChunkNum         = io.input("chunkNum", dfeUInt(8));
+		burstNum         = io.input("burstNum", dfeUInt(32));
+		//IterationNum     = io.input("IterationNum", dfeUInt(16));
+		DynAddrOffsetMax = io.input("dynAddrOffsetMax", dfeUInt(32));
 
 
 		// State
@@ -81,13 +83,21 @@ class MemCommandGenStateMachine extends KernelStateMachine {
 
 			IF ( burstCounter === burstNum-1 ) {
 
-
+/*
 				IF ( iterationCounter < IterationNum ) {
 					iterationCounter.next <== iterationCounter + 1;
 				}
 				ELSE {
 					iterationCounter.next <== 1;
 					dynAddrOffset.next <== dynAddrOffset + burstNum;
+				}
+*/
+				IF ( dynAddrOffset < DynAddrOffsetMax ) {
+					dynAddrOffset.next <== dynAddrOffset + burstNum;
+				}
+				ELSE {
+					iterationCounter.next <== iterationCounter + 1;
+					dynAddrOffset.next <== 0;
 				}
 
 				burstCounterWrapped.next <== 1;
@@ -115,42 +125,6 @@ class MemCommandGenStateMachine extends KernelStateMachine {
 
 
 		}
-
-		//sHoldCounter = state.value(counterType, 0);
-/*		
-		SWITCH(sMode) {
-			CASE(Modes.COUNTING_UP) {
-				IF(sCounter === iMax) {
-					sMode.next <== Modes.HOLD_COUNT;
-				} ELSE {
-					IF(sCounter > iMax) {
-						sCounter.next <== iMax;
-						sMode.next <== Modes.HOLD_COUNT;
-					} ELSE {
-						sCounter.next <== sCounter + 1;
-					}
-				}
-			}
-			CASE(Modes.COUNTING_DOWN) {
-				IF(sCounter === 0) {
-					sCounter.next <== sCounter + 1;
-					sMode.next <== Modes.COUNTING_UP;
-				} ELSE {
-					sCounter.next <== sCounter - 1;
-				}
-			}
-			OTHERWISE {
-				IF (sHoldCounter === mHoldCount)
-				{
-					sHoldCounter.next <== 0;
-					sMode.next <== Modes.COUNTING_DOWN;
-				}
-				ELSE {
-					sHoldCounter.next <== sHoldCounter + 1;
-				}
-			}
-		}
-*/
 
 		//oChunkCount <== chunkCounterWrapped;
 		oBurstCount <== burstCounter;
