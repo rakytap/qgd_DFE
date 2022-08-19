@@ -232,7 +232,7 @@ int downloadFromLMEM( Complex8** data, size_t dim ) {
  * \brief ???????????
  * 
  */
-int calcqgdKernelDFE(size_t dim, gate_kernel_type* gates, int gatesNum, int gateSetNum, double* trace )
+int calcqgdKernelDFE(size_t dim, gate_kernel_type* gates, int gatesNum, int gateSetNum, Complex8* trace )
 {
 
 
@@ -264,7 +264,7 @@ int calcqgdKernelDFE(size_t dim, gate_kernel_type* gates, int gatesNum, int gate
  * \brief ???????????
  * 
  */
-int calcqgdKernelDFE_oneShot(size_t dim, gate_kernel_type* gates, int gatesNum, int gateSetNum, double* trace )
+int calcqgdKernelDFE_oneShot(size_t dim, gate_kernel_type* gates, int gatesNum, int gateSetNum, Complex8* trace )
 {
 
 /*
@@ -454,7 +454,7 @@ printf("number of gates: %d\n", gatesNum);
 
 
     qgdDFE_run(	engine, &interface_actions);
-printf("gates num:%d, in %d sets\n", gatesNum, gateSetNum );
+//printf("gates num:%d, in %d sets\n", gatesNum, gateSetNum );
 /*
 for (size_t jdx=0; jdx<8; jdx++ ) {      
 printf("%f\n", 1.0-((double)trace_fix[jdx]/(1<<30))/256);
@@ -462,10 +462,18 @@ printf("%f\n", 1.0-((double)trace_fix[jdx]/(1<<30))/256);
   */  
 
     for (size_t jdx=0; jdx<gateSetNum_splitted[0]; jdx++ ) {      
-        trace[jdx+0*gateSetNum_splitted[0]] = ((double)trace_fix[8*jdx+4]/(1<<30));
-        trace[jdx+1*gateSetNum_splitted[0]] = ((double)trace_fix[8*jdx+5]/(1<<30));
-        trace[jdx+2*gateSetNum_splitted[0]] = ((double)trace_fix[8*jdx+6]/(1<<30));
-        trace[jdx+3*gateSetNum_splitted[0]] = ((double)trace_fix[8*jdx+7]/(1<<30));
+
+        trace[jdx+0*gateSetNum_splitted[0]].real = ((double)trace_fix[8*jdx+0]/(1<<30));
+        trace[jdx+1*gateSetNum_splitted[0]].real = ((double)trace_fix[8*jdx+1]/(1<<30));
+        trace[jdx+2*gateSetNum_splitted[0]].real = ((double)trace_fix[8*jdx+2]/(1<<30));
+        trace[jdx+3*gateSetNum_splitted[0]].real = ((double)trace_fix[8*jdx+3]/(1<<30));     
+
+    
+        trace[jdx+0*gateSetNum_splitted[0]].imag = ((double)trace_fix[8*jdx+4]/(1<<30));
+        trace[jdx+1*gateSetNum_splitted[0]].imag = ((double)trace_fix[8*jdx+5]/(1<<30));
+        trace[jdx+2*gateSetNum_splitted[0]].imag = ((double)trace_fix[8*jdx+6]/(1<<30));
+        trace[jdx+3*gateSetNum_splitted[0]].imag = ((double)trace_fix[8*jdx+7]/(1<<30));
+           
     }
 
 /*

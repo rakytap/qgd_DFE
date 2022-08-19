@@ -31,6 +31,7 @@ public class qgdDFEKernel extends Kernel {
 	DFEType dataTypeFix64            = dfeFixOffset(64, -30, SignMode.TWOSCOMPLEMENT);
 	DFEType parameterTypeFix32       = dfeFixOffset(32, -25, SignMode.TWOSCOMPLEMENT);
 	DFEComplexType cplxTypeFix32     = new DFEComplexType(dataTypeFix32);
+	DFEComplexType cplxTypeFix64     = new DFEComplexType(dataTypeFix64);	
 
 	DFEVectorType<DFEComplex> kernelMatrixType = new DFEVectorType<DFEComplex>(cplxTypeFix32, 4);
 
@@ -178,22 +179,30 @@ for ( int idx=0; idx<12; idx++ ) {
 			DFEVar rowIdx       = chain.addCounter(dim, 1);
 
 
-			DFEVar trace      = dataTypeFix64.newInstance(this);
+			DFEVar trace_real      = dataTypeFix64.newInstance(this);
+			DFEVar trace_imag      = dataTypeFix64.newInstance(this);			
 
-			DFEVar addToTrace = colIdx===rowIdx ? x.getReal().cast(dataTypeFix64) : constant.var( dataTypeFix64, 0.0);
+			DFEVar addToTrace_real = colIdx===rowIdx ? x.getReal().cast(dataTypeFix64) : constant.var( dataTypeFix64, 0.0);
+			DFEVar addToTrace_imag = colIdx===rowIdx ? x.getImaginary().cast(dataTypeFix64) : constant.var( dataTypeFix64, 0.0);
+						
 			optimization.pushNoPipelining();
-			DFEVar prevTrace = (colIdx+rowIdx)===0 ? constant.var( dataTypeFix64, 0.0) : stream.offset(trace,-1);
+			DFEVar prevTrace_real = (colIdx+rowIdx)===0 ? constant.var( dataTypeFix64, 0.0) : stream.offset(trace_real,-1);
+			DFEVar prevTrace_imag = (colIdx+rowIdx)===0 ? constant.var( dataTypeFix64, 0.0) : stream.offset(trace_imag,-1);			
 			optimization.pushNoPipelining();
 
-			trace <== prevTrace + addToTrace;
+			trace_real <== prevTrace_real + addToTrace_real;
+			trace_imag <== prevTrace_imag + addToTrace_imag;
+			
+			DFEComplex trace = cplxTypeFix64.newInstance( this );
+			trace.setReal( trace_real );			
+			trace.setImaginary( trace_imag );			
 /*
 if (verbose) {
 //debug.simPrintf("trace: %f, %d\n", x.getReal(), colIdx===rowIdx);
-debug.simPrintf("trace: %f, %f, %d, %d, %d, %d, %d\n", x.getReal(), trace, rowIdx, colIdx, iterationIdx, IterationNum, (rowIdx>=dim-2) & (colIdx===dim-1) & iterationIdx===IterationNum-1);
+debug.simPrintf("trace: %f, %f, %d, %d, %d, %d, %d\n", x.getReal(), trace, rowIdx, colIdx, iterationIdx, IterationNum, (rowIdx>=dim-1) & (colIdx===dim-1) & iterationIdx===IterationNum-1);
 }
 */
-			//output the last 2 elements to have 16bytes on the CPU stream
-			io.output("trace", trace, dataTypeFix64, (rowIdx>=dim-2) & (colIdx===dim-1) & iterationIdx===IterationNum-1);
+			io.output("trace", trace, cplxTypeFix64, (rowIdx===dim-1) & (colIdx===dim-1) & iterationIdx===IterationNum-1);
 
 		}
 

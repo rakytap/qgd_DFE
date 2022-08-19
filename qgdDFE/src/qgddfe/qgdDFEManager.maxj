@@ -114,9 +114,9 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 		super(params);	
 
 		// parameter to add additional registers for SLR crossing of data streams
-		int regPerX = 5;
+		int regPerX = 6;
 		int regPerX_LMEM = 6;		
-		int regPerX_CPU = 5;
+		int regPerX_CPU = 6;
 		
 //pushFanoutLimit(24);
 		
@@ -268,6 +268,10 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 			}
 					
 			
+			KernelBlock traceStaggerKernel = addKernel(new TraceStaggerKernel(makeKernelParameters("TraceStaggerKernel_"+String.valueOf(idx)))); 	
+			traceStaggerKernel.setClock( slowClock );
+					
+			
 			for (int gate_idx=0; gate_idx<chainedGatesNum; gate_idx++) {
 
 				if ( gate_idx==0 ) {
@@ -302,14 +306,20 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 
 					DFELink trace = kernel_list[idx*chainedGatesNum+gate_idx].getOutput("trace");				
 					trace.setAdditionalRegisters(regPerX);
+					
+					DFELink trace2stagger = traceStaggerKernel.getInput("trace_in");
+					trace2stagger.setAdditionalRegisters(regPerX);
+					trace2stagger <== trace;
+					DFELink trace_staggered = traceStaggerKernel.getOutput("trace_staggered");
+					trace_staggered.setAdditionalRegisters(regPerX);					
 
 					popRegion();
-					trace = slrCrossingChainWithClock("trace2cpu", Integer.toString(idx), trace, idx, -1, regPerX, this, slowClock);		
+					trace_staggered = slrCrossingChainWithClock("trace2cpu", Integer.toString(idx), trace_staggered, idx, -1, regPerX, this, slowClock);		
 					//gatesFromCPU = slrCrossingChain("gatesfromcpu", Integer.toString(idx), gatesFromCPU, -1, idx, regPerX, this);					
 					pushNamedRegion(named_region_list[idx]);
 
 
-					trace2merge <== trace;
+					trace2merge <== trace_staggered;
 					//trace2cpu <== trace;
 				}
 
@@ -417,6 +427,7 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 //			ei.setTicks("LMEM2CPUCommGenKernel_"+String.valueOf(idx), zero);
 			ei.setTicks("GateKernelGeneratorKernel_"+String.valueOf(idx), gatesNum*gateSetNum_list[idx]*4);			
 			//ei.setTicks("GateKernelGeneratorKernel_"+String.valueOf(idx), gatesNum*gateSetNum);	
+			ei.setTicks("TraceStaggerKernel_"+String.valueOf(idx), gateSetNum_list[idx]*2 );
 		}
 
 		for( int idx=0; idx<4; idx++) {
@@ -507,7 +518,8 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 			for (int gate_idx=0; gate_idx<chainedGatesNum; gate_idx++) {
 				ei.setTicks("qgdDFEKernel_"+String.valueOf(idx)+"_"+String.valueOf(gate_idx), zero);
 			}
-			ei.setTicks("GateKernelGeneratorKernel_"+String.valueOf(idx), zero);			
+			ei.setTicks("GateKernelGeneratorKernel_"+String.valueOf(idx), zero);		
+			ei.setTicks("TraceStaggerKernel_"+String.valueOf(idx), zero );	
 		}
 
 
