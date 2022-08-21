@@ -10,6 +10,11 @@ TARGET := libqgdDFE.so
 USE_SLIC=1
 include $(MAXCOMPILERDIR)/lib/Makefile.include
 
+ifeq ($(strip $(DUAL)),true)
+	COMPVAR := -D__DUAL__
+endif
+
+
 MAXFILES := $(foreach D,$(MAXFILE_DIRS),$(wildcard $(D)/*.max))
 
 ##### Simulator configuration #####
@@ -34,8 +39,8 @@ INCLUDE_FLAGS := $(foreach DIR,$(INCLUDES),-I$(DIR))
 COMMON_COMPILER_FLAGS := $(INCLUDE_FLAGS) -fPIC -Wall -march=native -march=native -Wno-unused-function -D_GNU_SOURCE -D__USE_MISC
 
 # Debug and release specific compiler flags.
-RELEASE_COMPILER_FLAGS := -g -O3
-DEBUG_COMPILER_FLAGS   := -g3 -O0
+RELEASE_COMPILER_FLAGS := -g -O3 $(COMPVAR)
+DEBUG_COMPILER_FLAGS   := -g3 -O0 $(COMPVAR)
 
 # C and C++ specific compiler flags.
 CXX_SPECIFIC_COMPILER_FLAGS := -std=c++11

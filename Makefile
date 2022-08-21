@@ -13,6 +13,9 @@ CPU:
 CPUDFE:
 	@$(MAKE) MODE=release MAXFILE_DIRS=/home/rakytap/qgd_DFE/qgdDFE/builds/bitstream -C ./qgdCPU/
 
+CPUDFEDUAL:
+	@$(MAKE) MODE=release MAXFILE_DIRS=/home/rakytap/qgd_DFE/qgdDFE/builds/bitstream -C ./qgdCPU/ DUAL=true
+
 
 .PHONY: all
 
