@@ -375,6 +375,19 @@ int calcqgdKernelDFE_oneShot(size_t dim, gate_kernel_type* gates, int gatesNum, 
     free( gates_chunked );
     gates_chunked = NULL;
 
+
+    for (size_t jdx=0; jdx<gateSetNum_splitted; jdx++ ) {      
+        trace[jdx+0*gateSetNum_splitted] = ((double)trace_fix[8*jdx+4]/(1<<30));
+        trace[jdx+1*gateSetNum_splitted] = ((double)trace_fix[8*jdx+5]/(1<<30));
+        trace[jdx+2*gateSetNum_splitted] = ((double)trace_fix[8*jdx+6]/(1<<30));
+        trace[jdx+3*gateSetNum_splitted] = ((double)trace_fix[8*jdx+7]/(1<<30));
+    }
+
+
+    free( trace_fix );
+    trace_fix = NULL;
+
+
 #else
 
 
@@ -521,9 +534,6 @@ int calcqgdKernelDFE_oneShot(size_t dim, gate_kernel_type* gates, int gatesNum, 
     free( gates_chunked1 );
     gates_chunked1 = NULL;
 
-#endif
-
-   
 
     double* trace0 = trace;
     for (size_t jdx=0; jdx<gateSetNum_splitted0; jdx++ ) {      
@@ -548,6 +558,8 @@ int calcqgdKernelDFE_oneShot(size_t dim, gate_kernel_type* gates, int gatesNum, 
 
     free( trace_fix1 );
     trace_fix1 = NULL;
+
+#endif
 
   
 

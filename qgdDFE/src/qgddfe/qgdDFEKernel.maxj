@@ -90,7 +90,9 @@ public class qgdDFEKernel extends Kernel {
 		DFEVar inputControllerCounter = control.count.simpleCounter(32, elementNum);
 		DFEVar inputController = inputControllerCounter < gates_num;
 		
-		final DFEStruct gate_input = io.input("gates", DFEstructType, inputController);
+		DFEStruct gate_input = io.input("gates", DFEstructType, inputController);
+		
+gate_input = optimization.limitFanout(gate_input, 10);		
 		
 List<DFEStruct> gate_list = new ArrayList<DFEStruct>();
 for (int gate_idx=0; gate_idx<gates_num; gate_idx++) {
@@ -143,7 +145,13 @@ for ( int idx=0; idx<12; idx++ ) {
 
 //debug.simPrintf("gate_idx: %d, elements b: %f\n", gate_idx, x.getReal());
 
-		DFEComplex transformedAmplitude = (targetState) ?  x_offset*kernelMatrix[2] + x*kernelMatrix[3] : x*kernelMatrix[0] + x_offset*kernelMatrix[1];
+		// multiplex inputs to save 50 of DSPs
+		//DFEComplex transformedAmplitude = (targetState) ?  x_offset*kernelMatrix[2] + x*kernelMatrix[3] : x*kernelMatrix[0] + x_offset*kernelMatrix[1];
+		DFEComplex amp_x = (targetState) ? kernelMatrix[3] : kernelMatrix[0];
+		DFEComplex amp_x_offset = (targetState) ? kernelMatrix[2] : kernelMatrix[1];
+		DFEComplex transformedAmplitude = x_offset*amp_x_offset + x*amp_x;
+
+
 
 		DFEVar ControlQubitState = useControlQubit ? ((indexStepControl & indexCounter) > 0) : constant.var( dfeUInt(1), 1);
 

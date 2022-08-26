@@ -40,8 +40,8 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 	int dim = 1024;
 	int dim_over_2 = dim/2;
 	int burstCountOneShot = 100;
-	static int chainedGatesNum = 4;
-	static int gatesNumPerKernel = 11;
+	static int chainedGatesNum = 6;
+	static int gatesNumPerKernel = 13;
 	static int totalGatesInChain = chainedGatesNum*gatesNumPerKernel;
 
 /**
@@ -114,9 +114,9 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 		super(params);	
 
 		// parameter to add additional registers for SLR crossing of data streams
-		int regPerX = 5;
-		int regPerX_LMEM = 6;		
-		int regPerX_CPU = 5;
+		int regPerX = 4;
+		int regPerX_LMEM = 5;		
+		int regPerX_CPU = 4;
 		
 //pushFanoutLimit(24);
 		
@@ -194,7 +194,7 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 /*			
 			// slow clock region for gate and memory address generators
 			ManagerClock slowClock = generateStaticClock("slowClock_"+String.valueOf(idx), 150);
-			ManagerClock memoryClock = generateStaticClock("memoryClock_"+String.valueOf(idx), 250);						
+			ManagerClock memoryClock = generateStaticClock("memoryClock_"+String.valueOf(idx), 270);						
 */			
 			// create memory interface			
 			iface_list.add( addLMemInterface("LMEMiface_"+String.valueOf(idx), named_region_list[idx]) );
