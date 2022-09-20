@@ -545,7 +545,7 @@ int calcqgdKernelDFE_oneShot(size_t dim, gate_kernel_type* gates, int gatesNum, 
 
 
     double* trace1 = trace + gateSetNum0;
-    for (size_t jdx=0; jdx<gateSetNum_splitted0; jdx++ ) {      
+    for (size_t jdx=0; jdx<gateSetNum_splitted1; jdx++ ) {      
         trace1[jdx+0*gateSetNum_splitted1] = ((double)trace_fix1[8*jdx+4]/(1<<30));
         trace1[jdx+1*gateSetNum_splitted1] = ((double)trace_fix1[8*jdx+5]/(1<<30));
         trace1[jdx+2*gateSetNum_splitted1] = ((double)trace_fix1[8*jdx+6]/(1<<30));
