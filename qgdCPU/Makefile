@@ -14,6 +14,10 @@ ifeq ($(strip $(DUAL)),true)
 	COMPVAR := -D__DUAL__
 endif
 
+ifeq ($(strip $(TRIAL)),true)
+	COMPVAR := -D__TRIAL__
+endif
+
 
 MAXFILES := $(foreach D,$(MAXFILE_DIRS),$(wildcard $(D)/*.max))
 
