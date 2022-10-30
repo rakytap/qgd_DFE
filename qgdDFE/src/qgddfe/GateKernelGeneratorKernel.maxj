@@ -125,8 +125,8 @@ public class GateKernelGeneratorKernel extends Kernel {
 		DFEVar cosPhi = KernelMath.cos( Phi  ).cast(dataTypeFix32);
 		DFEVar sinPhi = KernelMath.sin( Phi  ).cast(dataTypeFix32);
 
-		DFEVar cosPhiLambda = KernelMath.cos( Phi+Lambda  ).cast(dataTypeFix32);
-		DFEVar sinPhiLambda = KernelMath.sin( Phi+Lambda  ).cast(dataTypeFix32);
+		DFEVar cosPhiLambda = cosPhi*cosLambda - sinPhi*sinLambda;//KernelMath.cos( Phi+Lambda  ).cast(dataTypeFix32);
+		DFEVar sinPhiLambda = sinPhi*cosLambda + cosPhi*sinLambda;//KernelMath.sin( Phi+Lambda  ).cast(dataTypeFix32);
 
 
 		// extract boolen metadata to construct correct matrix kernel account for derivate operations as well

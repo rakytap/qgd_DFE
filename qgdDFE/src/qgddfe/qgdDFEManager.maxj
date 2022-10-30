@@ -26,6 +26,7 @@ import com.maxeler.conf.base.MaxCompilerBuildConf;
 
 import com.maxeler.maxcompiler.v2.managers.custom.api.ManagerPCIe.StreamMode;
 import com.maxeler.platform.max5.manager.SynthesisStrategy;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelConfiguration.OptimizationOptions;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -41,7 +42,7 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 	int dim_over_2 = dim/2;
 	int burstCountOneShot = 100;
 	static int chainedGatesNum = 6;
-	static int gatesNumPerKernel = 17;
+	static int gatesNumPerKernel = 18;
 	static int totalGatesInChain = chainedGatesNum*gatesNumPerKernel;
 
 /**
@@ -119,6 +120,10 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 		int regPerX_CPU = 4;
 		
 //pushFanoutLimit(24);
+
+		OptimizationOptions opt = getCurrentKernelConfig().optimization;
+		opt.setUseGlobalClockLinesRst(true);
+		//opt.setUseGlobalClockBuffer(true);
 		
 		
 		//getLMemGlobalConfig().setMemoryFrequency(LMemFrequency.LMEM_1200MHZ);
@@ -626,10 +631,17 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
         	//conf.setImplementationNearMissThreshold(10000); //0-1000000 are considered within threshold for build success on MAX5
 //conf.setBramMappingScaleFactor(0.5);
 
-		conf.setImplementationStrategies( ImplementationStrategy.MAXELER4, 
-						ImplementationStrategy.MAXELER3);
-		conf.setSynthesisStrategy( SynthesisStrategy.FLOW_PERF_OPTIMIZED_HIGH );
-		conf.setParallelism( 64 );
+		conf.setSynthesisStrategy(Utility.getHighPerfSynthStrategy()); //SynthesisStrategy.FLOW_PERF_OPTIMIZED_HIGH);
+
+	        //Inspect output timing scores and rank from best to worst
+		boolean isProbe = false;
+	        conf.setImplementationStrategies(Utility.chooseImplementationStrategies(false, isProbe));
+	        conf.setParallelism(5);
+
+//		conf.setImplementationStrategies( ImplementationStrategy.MAXELER4, 
+//						ImplementationStrategy.MAXELER3);
+//		conf.setSynthesisStrategy( SynthesisStrategy.FLOW_PERF_OPTIMIZED_HIGH );
+//		conf.setParallelism( 64 );
 
 		manager.setDefaultStreamClockFrequency(350);
 		
