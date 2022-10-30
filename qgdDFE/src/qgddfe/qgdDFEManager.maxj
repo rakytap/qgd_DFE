@@ -174,10 +174,6 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
             generateStaticClock("memoryClock_"+String.valueOf(2), 250),
             generateStaticClock("memoryClock_"+String.valueOf(3), 250) };
 		
-	    ManagerClock[] fastClock = new ManagerClock[] { generateStaticClock("fastClock0", 350), generateStaticClock("fastClock1", 350),
-            generateStaticClock("fastClock2", 350), generateStaticClock("fastClock3", 350) };
-
-
                 // kernels to split input data comming from CPU to SLRs
 		pushNamedRegion(named_region_list[0]);
 		KernelBlock gateDataSplitKernel = addKernel(new GateDataSplitKernel(makeKernelParameters("GateDataSplitKernel") ) );
@@ -262,7 +258,7 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 			gatesCPU <== gatesFromCPU;
 
 
-			ManagerClock fastClock = generateStaticClock("fastClock" + str(idx), 350);
+			ManagerClock fastClock = generateStaticClock("fastClock" + idx, 350);
 
 			
 			for (int gate_idx=0; gate_idx<chainedGatesNum; gate_idx++) {
