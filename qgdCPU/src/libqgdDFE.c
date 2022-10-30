@@ -45,12 +45,12 @@ typedef struct {
 static bool initialized = false;
 static max_file_t* maxfile = NULL;
 
-#ifndef __DUAL__
-/// static pointer to DFE
-static max_engine_t *engine = NULL;
-#else
+#if defined (__DUAL__) || defined (__TRIAL__)
 /// static pointer to DFE array
 static max_group_t* engine_group = NULL;
+#else
+/// static pointer to DFE
+static max_engine_t *engine = NULL;
 #endif
 
 
@@ -83,10 +83,10 @@ void releive_DFE()
     // unload the max files from the devices
     initialized = false;
 
-#ifndef __DUAL__
-    max_unload(engine);
-#else
+#if defined (__DUAL__) || defined(__TRIAL__)
     max_unload_group(engine_group);
+#else
+    max_unload(engine);
 #endif
 
     max_file_free(maxfile);
@@ -109,15 +109,8 @@ int initialize_DFE()
 
     if (!maxfile) return 1;
 
-#ifndef __DUAL__
-    engine = max_load(maxfile, "local:*");
 
-    if (!engine) { 
-        max_file_free(maxfile); 
-        return 1; 
-    }
-#else
-
+#if defined (__DUAL__)
     engine_group = max_load_group(maxfile, MAXOS_EXCLUSIVE, "local:*", 2);
 
     if (!engine_group) { 
@@ -125,6 +118,21 @@ int initialize_DFE()
         return 1; 
     }
 
+#elif defined (__TRIAL__)
+    engine_group = max_load_group(maxfile, MAXOS_EXCLUSIVE, "local:*", 3);
+
+    if (!engine_group) { 
+        max_file_free(maxfile); 
+        return 1; 
+    }
+    
+#else
+    engine = max_load(maxfile, "local:*");
+
+    if (!engine) { 
+        max_file_free(maxfile); 
+        return 1; 
+    }
 #endif
 
 
@@ -145,7 +153,7 @@ int initialize_DFE()
  * \brief ???????????
  * 
  */
-int load2LMEM( Complex8* data, size_t dim ) {
+int load2LMEM( Complex8* data, size_t rows, size_t cols ) {
 
     // test whether the DFE engine can be initialized
     if ( initialize_DFE() ) {
@@ -153,26 +161,18 @@ int load2LMEM( Complex8* data, size_t dim ) {
         return 1;
     }
 
-    size_t element_num = dim*dim;
+    size_t element_num = rows*cols;
 
     // convert data to fixpoint number representation into (0,31) and a sign bit and transpose the matrix to get column-major representation
     int32_t* data_fix = (int32_t*)malloc( 2*element_num*sizeof(int32_t) );
-    for (size_t row_idx=0; row_idx<dim; row_idx++) {
-        for (size_t col_idx=0; col_idx<dim; col_idx++) {
-            data_fix[2*(col_idx*dim+row_idx)] = ceil(data[row_idx*dim+col_idx].real*(1<<30));
-            data_fix[2*(col_idx*dim+row_idx)+1] = ceil(data[row_idx*dim+col_idx].imag*(1<<30));
+    for (size_t row_idx=0; row_idx<rows; row_idx++) {
+        for (size_t col_idx=0; col_idx<cols; col_idx++) {
+            data_fix[2*(col_idx*rows+row_idx)] = ceil(data[row_idx*cols+col_idx].real*(1<<30));
+            data_fix[2*(col_idx*rows+row_idx)+1] = ceil(data[row_idx*cols+col_idx].imag*(1<<30));
         }
     }
 
-#ifndef __DUAL__
-    // upload data to DFE LMEM
-    qgdDFE_writeLMem_actions_t interface_actions;
-    interface_actions.param_element_num = 2*element_num;
-    interface_actions.instream_fromcpu = (void*)data_fix;
-
-    qgdDFE_writeLMem_run( engine, &interface_actions);
-
-#else
+#if defined (__DUAL__)
 
     // upload data to DFE LMEM
     qgdDFE_writeLMem_actions_t *pinterface_actions[2];
@@ -189,6 +189,39 @@ int load2LMEM( Complex8* data, size_t dim ) {
     max_run_t* run1 = qgdDFE_writeLMem_run_group_nonblock(engine_group, pinterface_actions[1]); 
     max_wait(run0); 
     max_wait(run1);
+
+#elif defined (__TRIAL__)
+
+    // upload data to DFE LMEM
+    qgdDFE_writeLMem_actions_t *pinterface_actions[3];
+    qgdDFE_writeLMem_actions_t interface_actions[3];
+    interface_actions[0].param_element_num = 2*element_num;
+    interface_actions[0].instream_fromcpu = (void*)data_fix;
+    pinterface_actions[0] = &interface_actions[0];
+
+    interface_actions[1].param_element_num = 2*element_num;
+    interface_actions[1].instream_fromcpu = (void*)data_fix;
+    pinterface_actions[1] = &interface_actions[1];
+
+    interface_actions[2].param_element_num = 2*element_num;
+    interface_actions[2].instream_fromcpu = (void*)data_fix;
+    pinterface_actions[2] = &interface_actions[2];
+
+    max_run_t* run0 = qgdDFE_writeLMem_run_group_nonblock(engine_group, pinterface_actions[0]);
+    max_run_t* run1 = qgdDFE_writeLMem_run_group_nonblock(engine_group, pinterface_actions[1]); 
+    max_run_t* run2 = qgdDFE_writeLMem_run_group_nonblock(engine_group, pinterface_actions[2]); 
+    max_wait(run0); 
+    max_wait(run1);
+    max_wait(run2);
+
+
+#else
+
+    qgdDFE_writeLMem_actions_t interface_actions;
+    interface_actions.param_element_num = 2*element_num;
+    interface_actions.instream_fromcpu = (void*)data_fix;
+
+    qgdDFE_writeLMem_run( engine, &interface_actions);
 
 #endif
 
@@ -269,7 +302,7 @@ int downloadFromLMEM( Complex8** data, size_t dim ) {
  * \brief ???????????
  * 
  */
-int calcqgdKernelDFE_oneShot(size_t dim, gate_kernel_type* gates, int gatesNum, int gateSetNum, double* trace )
+int calcqgdKernelDFE_oneShot(size_t rows, size_t cols, gate_kernel_type* gates, int gatesNum, int gateSetNum, double* trace )
 {
 
 
@@ -285,15 +318,7 @@ int calcqgdKernelDFE_oneShot(size_t dim, gate_kernel_type* gates, int gatesNum, 
         return -1;
     }    
    
-    int gateSetNum_splitted = gateSetNum/4;
-    size_t element_num = dim*dim;
-/*      
-    uint64_t tick_counts[4];
-    for (int idx=0; idx<4; idx++) {
-        tick_counts[idx] = element_num*gateSetNum_splitted*gatesNum/get_chained_gates_num();
-    }
-  */
-  
+    int gateSetNum_splitted = gateSetNum/4; 
 
   
 
@@ -302,7 +327,434 @@ int calcqgdKernelDFE_oneShot(size_t dim, gate_kernel_type* gates, int gatesNum, 
 //    printf("iteration num: %d\n", iterationNum );
 
 
-#ifndef __DUAL__
+#if defined (__DUAL__)
+
+    int gateSetNum_splitted0 = gateSetNum_splitted/2;
+    int gateSetNum_splitted1 = gateSetNum_splitted - gateSetNum_splitted0;
+    int gateSetNum0 = gateSetNum_splitted0*4;
+    int gateSetNum1 = gateSetNum_splitted1*4;
+
+   // allocate memory for output    
+   int64_t* trace_fix0 = (int64_t*)malloc( 2*sizeof(int64_t)*gateSetNum0 ); 
+   int64_t* trace_fix1 = (int64_t*)malloc( 2*sizeof(int64_t)*gateSetNum1 ); 
+
+
+    gate_kernel_type* gates0 = gates;
+    gate_kernel_type* gates1 = gates + gatesNum*gateSetNum0;
+
+    // organize input gates into 32 bit chunks
+    void* gates_chunked0 = malloc(sizeof(gate_kernel_type)*gatesNum*gateSetNum0);
+    void* gates_chunked1 = malloc(sizeof(gate_kernel_type)*gatesNum*gateSetNum1);
+
+    int idx_chunked = 0;
+    for( int iterationNum_idx=0; iterationNum_idx<iterationNum; iterationNum_idx++ ) {
+        for( int gateSet_idx=0; gateSet_idx<gateSetNum_splitted0; gateSet_idx++ ) {
+            for( int gate_idx=0; gate_idx<get_chained_gates_num(); gate_idx++ ) {
+
+                int idx_orig    = gateSet_idx*gatesNum + iterationNum_idx*get_chained_gates_num() + gate_idx;
+//printf("%d, %d\n", idx_chunked, idx_orig);
+ 
+                const void* gates_0 = (void*)&gates0[idx_orig + 0*gatesNum*gateSetNum_splitted0];
+                const void* gates_1 = (void*)&gates0[idx_orig + 1*gatesNum*gateSetNum_splitted0];
+                const void* gates_2 = (void*)&gates0[idx_orig + 2*gatesNum*gateSetNum_splitted0];
+                const void* gates_3 = (void*)&gates0[idx_orig + 3*gatesNum*gateSetNum_splitted0];
+
+                memcpy( gates_chunked0 + idx_chunked*64 + 0, gates_0, 4 );
+                memcpy( gates_chunked0 + idx_chunked*64 + 4, gates_1, 4 );
+                memcpy( gates_chunked0 + idx_chunked*64 + 8, gates_2, 4 );
+                memcpy( gates_chunked0 + idx_chunked*64 + 12, gates_3, 4 );
+
+                memcpy( gates_chunked0 + idx_chunked*64 + 16, gates_0+4, 4 );
+                memcpy( gates_chunked0 + idx_chunked*64 + 20, gates_1+4, 4 );
+                memcpy( gates_chunked0 + idx_chunked*64 + 24, gates_2+4, 4 );
+                memcpy( gates_chunked0 + idx_chunked*64 + 28, gates_3+4, 4 );
+
+                memcpy( gates_chunked0 + idx_chunked*64 + 32, gates_0+8, 4 );
+                memcpy( gates_chunked0 + idx_chunked*64 + 36, gates_1+8, 4 );
+                memcpy( gates_chunked0 + idx_chunked*64 + 40, gates_2+8, 4 );
+                memcpy( gates_chunked0 + idx_chunked*64 + 44, gates_3+8, 4 );
+
+                memcpy( gates_chunked0 + idx_chunked*64 + 48, gates_0+12, 4 );
+                memcpy( gates_chunked0 + idx_chunked*64 + 52, gates_1+12, 4 );
+                memcpy( gates_chunked0 + idx_chunked*64 + 56, gates_2+12, 4 );
+                memcpy( gates_chunked0 + idx_chunked*64 + 60, gates_3+12, 4 );
+
+                idx_chunked++;
+
+            }
+        }
+    }
+
+
+    idx_chunked = 0;
+    for( int iterationNum_idx=0; iterationNum_idx<iterationNum; iterationNum_idx++ ) {
+        for( int gateSet_idx=0; gateSet_idx<gateSetNum_splitted1; gateSet_idx++ ) { 
+            for( int gate_idx=0; gate_idx<get_chained_gates_num(); gate_idx++ ) {
+
+                int idx_orig    = gateSet_idx*gatesNum + iterationNum_idx*get_chained_gates_num() + gate_idx;
+//printf("%d, %d\n", idx_chunked, idx_orig);
+ 
+                const void* gates_0 = (void*)&gates1[idx_orig + 0*gatesNum*gateSetNum_splitted1]; 
+                const void* gates_1 = (void*)&gates1[idx_orig + 1*gatesNum*gateSetNum_splitted1]; 
+                const void* gates_2 = (void*)&gates1[idx_orig + 2*gatesNum*gateSetNum_splitted1];
+                const void* gates_3 = (void*)&gates1[idx_orig + 3*gatesNum*gateSetNum_splitted1];
+
+                memcpy( gates_chunked1 + idx_chunked*64 + 0, gates_0, 4 );
+                memcpy( gates_chunked1 + idx_chunked*64 + 4, gates_1, 4 );
+                memcpy( gates_chunked1 + idx_chunked*64 + 8, gates_2, 4 );
+                memcpy( gates_chunked1 + idx_chunked*64 + 12, gates_3, 4 );
+
+                memcpy( gates_chunked1 + idx_chunked*64 + 16, gates_0+4, 4 );
+                memcpy( gates_chunked1 + idx_chunked*64 + 20, gates_1+4, 4 );
+                memcpy( gates_chunked1 + idx_chunked*64 + 24, gates_2+4, 4 );
+                memcpy( gates_chunked1 + idx_chunked*64 + 28, gates_3+4, 4 );
+
+                memcpy( gates_chunked1 + idx_chunked*64 + 32, gates_0+8, 4 );
+                memcpy( gates_chunked1 + idx_chunked*64 + 36, gates_1+8, 4 );
+                memcpy( gates_chunked1 + idx_chunked*64 + 40, gates_2+8, 4 );
+                memcpy( gates_chunked1 + idx_chunked*64 + 44, gates_3+8, 4 );
+
+                memcpy( gates_chunked1 + idx_chunked*64 + 48, gates_0+12, 4 );
+                memcpy( gates_chunked1 + idx_chunked*64 + 52, gates_1+12, 4 );
+                memcpy( gates_chunked1 + idx_chunked*64 + 56, gates_2+12, 4 );
+                memcpy( gates_chunked1 + idx_chunked*64 + 60, gates_3+12, 4 );
+
+                idx_chunked++;
+
+            }
+        }
+    }
+
+
+    qgdDFE_actions_t *pinterface_actions[2];
+    qgdDFE_actions_t interface_actions[2];
+
+    interface_actions[0].param_rows                 = rows;
+    interface_actions[0].param_cols                 = cols;
+    interface_actions[0].param_gatesNum             = gatesNum;
+    interface_actions[0].param_gateSetNum_0         = gateSetNum_splitted0;
+    interface_actions[0].param_gateSetNum_1         = gateSetNum_splitted0;
+    interface_actions[0].param_gateSetNum_2         = gateSetNum_splitted0;
+    interface_actions[0].param_gateSetNum_3         = gateSetNum_splitted0;
+    interface_actions[0].instream_gatesfromcpu      = gates_chunked0;
+    interface_actions[0].instream_size_gatesfromcpu = sizeof(gate_kernel_type)*gatesNum*gateSetNum0;
+    interface_actions[0].ticks_GateDataSplitKernel  = gatesNum*gateSetNum0;
+    interface_actions[0].outstream_trace2cpu        = trace_fix0; 
+    interface_actions[0].outstream_size_trace2cpu   = 2*sizeof(int64_t)*gateSetNum0;
+    interface_actions[0].ticks_TraceMergeKernel     = 2*gateSetNum_splitted0;
+    pinterface_actions[0] = &interface_actions[0];
+
+
+    interface_actions[1].param_rows                 = rows;
+    interface_actions[1].param_cols                 = cols;
+    interface_actions[1].param_gatesNum             = gatesNum;
+    interface_actions[1].param_gateSetNum_0         = gateSetNum_splitted1;
+    interface_actions[1].param_gateSetNum_1         = gateSetNum_splitted1;
+    interface_actions[1].param_gateSetNum_2         = gateSetNum_splitted1;
+    interface_actions[1].param_gateSetNum_3         = gateSetNum_splitted1;
+    interface_actions[1].instream_gatesfromcpu      = gates_chunked1;
+    interface_actions[1].instream_size_gatesfromcpu = sizeof(gate_kernel_type)*gatesNum*gateSetNum1;
+    interface_actions[1].ticks_GateDataSplitKernel  = gatesNum*gateSetNum1;
+    interface_actions[1].outstream_trace2cpu        = trace_fix1; 
+    interface_actions[1].outstream_size_trace2cpu   = 2*sizeof(int64_t)*gateSetNum1;
+    interface_actions[1].ticks_TraceMergeKernel     = 2*gateSetNum_splitted1;
+    pinterface_actions[1] = &interface_actions[1]; 
+
+
+    max_run_t* run0 = qgdDFE_run_group_nonblock(engine_group, pinterface_actions[0]);
+    max_run_t* run1 = qgdDFE_run_group_nonblock(engine_group, pinterface_actions[1]); 
+    max_wait(run0); 
+    max_wait(run1);
+
+    free( gates_chunked0 );
+    gates_chunked0 = NULL;
+
+    free( gates_chunked1 );
+    gates_chunked1 = NULL;
+
+
+    double* trace0 = trace;
+    for (size_t jdx=0; jdx<gateSetNum_splitted0; jdx++ ) {      
+        trace0[jdx+0*gateSetNum_splitted0] = ((double)trace_fix0[8*jdx+4]/(1<<30));
+        trace0[jdx+1*gateSetNum_splitted0] = ((double)trace_fix0[8*jdx+5]/(1<<30));
+        trace0[jdx+2*gateSetNum_splitted0] = ((double)trace_fix0[8*jdx+6]/(1<<30));
+        trace0[jdx+3*gateSetNum_splitted0] = ((double)trace_fix0[8*jdx+7]/(1<<30));
+    }
+
+
+    double* trace1 = trace + gateSetNum0;
+    for (size_t jdx=0; jdx<gateSetNum_splitted1; jdx++ ) {      
+        trace1[jdx+0*gateSetNum_splitted1] = ((double)trace_fix1[8*jdx+4]/(1<<30));
+        trace1[jdx+1*gateSetNum_splitted1] = ((double)trace_fix1[8*jdx+5]/(1<<30));
+        trace1[jdx+2*gateSetNum_splitted1] = ((double)trace_fix1[8*jdx+6]/(1<<30));
+        trace1[jdx+3*gateSetNum_splitted1] = ((double)trace_fix1[8*jdx+7]/(1<<30));
+    }
+
+
+    free( trace_fix0 );
+    trace_fix0 = NULL;
+
+    free( trace_fix1 );
+    trace_fix1 = NULL;
+
+
+#elif defined (__TRIAL__)
+
+
+    int gateSetNum_splitted0 = gateSetNum_splitted/3;
+    int gateSetNum_splitted1 = gateSetNum_splitted/3;
+    int gateSetNum_splitted2 = gateSetNum_splitted/3;
+
+    int gateSetNum_splitted_remainder = gateSetNum_splitted % 3;
+    if ( gateSetNum_splitted_remainder>0 ) gateSetNum_splitted0++;
+    if ( gateSetNum_splitted_remainder>1 ) gateSetNum_splitted1++;
+
+    int gateSetNum0 = gateSetNum_splitted0*4;
+    int gateSetNum1 = gateSetNum_splitted1*4;
+    int gateSetNum2 = gateSetNum_splitted2*4;
+
+   // allocate memory for output    
+   int64_t* trace_fix0 = (int64_t*)malloc( 2*sizeof(int64_t)*gateSetNum0 ); 
+   int64_t* trace_fix1 = (int64_t*)malloc( 2*sizeof(int64_t)*gateSetNum1 ); 
+   int64_t* trace_fix2 = (int64_t*)malloc( 2*sizeof(int64_t)*gateSetNum2 ); 
+
+
+    gate_kernel_type* gates0 = gates;
+    gate_kernel_type* gates1 = gates + gatesNum*gateSetNum0;
+    gate_kernel_type* gates2 = gates1 + gatesNum*gateSetNum1;
+
+    // organize input gates into 32 bit chunks
+    void* gates_chunked0 = malloc(sizeof(gate_kernel_type)*gatesNum*gateSetNum0); 
+    void* gates_chunked1 = malloc(sizeof(gate_kernel_type)*gatesNum*gateSetNum1); 
+    void* gates_chunked2 = malloc(sizeof(gate_kernel_type)*gatesNum*gateSetNum2); 
+
+    int idx_chunked = 0;
+    for( int iterationNum_idx=0; iterationNum_idx<iterationNum; iterationNum_idx++ ) {
+        for( int gateSet_idx=0; gateSet_idx<gateSetNum_splitted0; gateSet_idx++ ) {
+            for( int gate_idx=0; gate_idx<get_chained_gates_num(); gate_idx++ ) {
+
+                int idx_orig    = gateSet_idx*gatesNum + iterationNum_idx*get_chained_gates_num() + gate_idx;
+//printf("%d, %d\n", idx_chunked, idx_orig);
+ 
+                const void* gates_0 = (void*)&gates0[idx_orig + 0*gatesNum*gateSetNum_splitted0]; 
+                const void* gates_1 = (void*)&gates0[idx_orig + 1*gatesNum*gateSetNum_splitted0]; 
+                const void* gates_2 = (void*)&gates0[idx_orig + 2*gatesNum*gateSetNum_splitted0]; 
+                const void* gates_3 = (void*)&gates0[idx_orig + 3*gatesNum*gateSetNum_splitted0]; 
+
+                memcpy( gates_chunked0 + idx_chunked*64 + 0, gates_0, 4 );
+                memcpy( gates_chunked0 + idx_chunked*64 + 4, gates_1, 4 );
+                memcpy( gates_chunked0 + idx_chunked*64 + 8, gates_2, 4 );
+                memcpy( gates_chunked0 + idx_chunked*64 + 12, gates_3, 4 );
+
+                memcpy( gates_chunked0 + idx_chunked*64 + 16, gates_0+4, 4 );
+                memcpy( gates_chunked0 + idx_chunked*64 + 20, gates_1+4, 4 );
+                memcpy( gates_chunked0 + idx_chunked*64 + 24, gates_2+4, 4 );
+                memcpy( gates_chunked0 + idx_chunked*64 + 28, gates_3+4, 4 );
+
+                memcpy( gates_chunked0 + idx_chunked*64 + 32, gates_0+8, 4 );
+                memcpy( gates_chunked0 + idx_chunked*64 + 36, gates_1+8, 4 );
+                memcpy( gates_chunked0 + idx_chunked*64 + 40, gates_2+8, 4 );
+                memcpy( gates_chunked0 + idx_chunked*64 + 44, gates_3+8, 4 );
+
+                memcpy( gates_chunked0 + idx_chunked*64 + 48, gates_0+12, 4 );
+                memcpy( gates_chunked0 + idx_chunked*64 + 52, gates_1+12, 4 );
+                memcpy( gates_chunked0 + idx_chunked*64 + 56, gates_2+12, 4 );
+                memcpy( gates_chunked0 + idx_chunked*64 + 60, gates_3+12, 4 );
+
+                idx_chunked++;
+
+            }
+        }
+    }
+
+
+    idx_chunked = 0;
+    for( int iterationNum_idx=0; iterationNum_idx<iterationNum; iterationNum_idx++ ) {
+        for( int gateSet_idx=0; gateSet_idx<gateSetNum_splitted1; gateSet_idx++ ) {
+            for( int gate_idx=0; gate_idx<get_chained_gates_num(); gate_idx++ ) {
+
+                int idx_orig    = gateSet_idx*gatesNum + iterationNum_idx*get_chained_gates_num() + gate_idx;
+//printf("%d, %d\n", idx_chunked, idx_orig);
+ 
+                const void* gates_0 = (void*)&gates1[idx_orig + 0*gatesNum*gateSetNum_splitted1];
+                const void* gates_1 = (void*)&gates1[idx_orig + 1*gatesNum*gateSetNum_splitted1];
+                const void* gates_2 = (void*)&gates1[idx_orig + 2*gatesNum*gateSetNum_splitted1];
+                const void* gates_3 = (void*)&gates1[idx_orig + 3*gatesNum*gateSetNum_splitted1];
+
+                memcpy( gates_chunked1 + idx_chunked*64 + 0, gates_0, 4 );
+                memcpy( gates_chunked1 + idx_chunked*64 + 4, gates_1, 4 );
+                memcpy( gates_chunked1 + idx_chunked*64 + 8, gates_2, 4 );
+                memcpy( gates_chunked1 + idx_chunked*64 + 12, gates_3, 4 );
+
+                memcpy( gates_chunked1 + idx_chunked*64 + 16, gates_0+4, 4 );
+                memcpy( gates_chunked1 + idx_chunked*64 + 20, gates_1+4, 4 );
+                memcpy( gates_chunked1 + idx_chunked*64 + 24, gates_2+4, 4 );
+                memcpy( gates_chunked1 + idx_chunked*64 + 28, gates_3+4, 4 );
+
+                memcpy( gates_chunked1 + idx_chunked*64 + 32, gates_0+8, 4 );
+                memcpy( gates_chunked1 + idx_chunked*64 + 36, gates_1+8, 4 );
+                memcpy( gates_chunked1 + idx_chunked*64 + 40, gates_2+8, 4 );
+                memcpy( gates_chunked1 + idx_chunked*64 + 44, gates_3+8, 4 );
+
+                memcpy( gates_chunked1 + idx_chunked*64 + 48, gates_0+12, 4 );
+                memcpy( gates_chunked1 + idx_chunked*64 + 52, gates_1+12, 4 );
+                memcpy( gates_chunked1 + idx_chunked*64 + 56, gates_2+12, 4 );
+                memcpy( gates_chunked1 + idx_chunked*64 + 60, gates_3+12, 4 );
+
+                idx_chunked++;
+
+            }
+        }
+    }
+
+
+
+    idx_chunked = 0;
+    for( int iterationNum_idx=0; iterationNum_idx<iterationNum; iterationNum_idx++ ) {
+        for( int gateSet_idx=0; gateSet_idx<gateSetNum_splitted2; gateSet_idx++ ) {
+            for( int gate_idx=0; gate_idx<get_chained_gates_num(); gate_idx++ ) {
+
+                int idx_orig    = gateSet_idx*gatesNum + iterationNum_idx*get_chained_gates_num() + gate_idx;
+//printf("%d, %d\n", idx_chunked, idx_orig);
+ 
+                const void* gates_0 = (void*)&gates2[idx_orig + 0*gatesNum*gateSetNum_splitted2];
+                const void* gates_1 = (void*)&gates2[idx_orig + 1*gatesNum*gateSetNum_splitted2];
+                const void* gates_2 = (void*)&gates2[idx_orig + 2*gatesNum*gateSetNum_splitted2];
+                const void* gates_3 = (void*)&gates2[idx_orig + 3*gatesNum*gateSetNum_splitted2];
+
+                memcpy( gates_chunked2 + idx_chunked*64 + 0, gates_0, 4 );
+                memcpy( gates_chunked2 + idx_chunked*64 + 4, gates_1, 4 );
+                memcpy( gates_chunked2 + idx_chunked*64 + 8, gates_2, 4 );
+                memcpy( gates_chunked2 + idx_chunked*64 + 12, gates_3, 4 );
+
+                memcpy( gates_chunked2 + idx_chunked*64 + 16, gates_0+4, 4 );
+                memcpy( gates_chunked2 + idx_chunked*64 + 20, gates_1+4, 4 );
+                memcpy( gates_chunked2 + idx_chunked*64 + 24, gates_2+4, 4 );
+                memcpy( gates_chunked2 + idx_chunked*64 + 28, gates_3+4, 4 );
+
+                memcpy( gates_chunked2 + idx_chunked*64 + 32, gates_0+8, 4 );
+                memcpy( gates_chunked2 + idx_chunked*64 + 36, gates_1+8, 4 );
+                memcpy( gates_chunked2 + idx_chunked*64 + 40, gates_2+8, 4 );
+                memcpy( gates_chunked2 + idx_chunked*64 + 44, gates_3+8, 4 );
+
+                memcpy( gates_chunked2 + idx_chunked*64 + 48, gates_0+12, 4 );
+                memcpy( gates_chunked2 + idx_chunked*64 + 52, gates_1+12, 4 );
+                memcpy( gates_chunked2 + idx_chunked*64 + 56, gates_2+12, 4 );
+                memcpy( gates_chunked2 + idx_chunked*64 + 60, gates_3+12, 4 );
+
+                idx_chunked++;
+
+            }
+        }
+    }
+
+
+    qgdDFE_actions_t *pinterface_actions[3];
+    qgdDFE_actions_t interface_actions[3];
+
+    interface_actions[0].param_rows                 = rows;
+    interface_actions[0].param_cols                 = cols;
+    interface_actions[0].param_gatesNum             = gatesNum;
+    interface_actions[0].param_gateSetNum_0         = gateSetNum_splitted0;
+    interface_actions[0].param_gateSetNum_1         = gateSetNum_splitted0;
+    interface_actions[0].param_gateSetNum_2         = gateSetNum_splitted0;
+    interface_actions[0].param_gateSetNum_3         = gateSetNum_splitted0;
+    interface_actions[0].instream_gatesfromcpu      = gates_chunked0;
+    interface_actions[0].instream_size_gatesfromcpu = sizeof(gate_kernel_type)*gatesNum*gateSetNum0;
+    interface_actions[0].ticks_GateDataSplitKernel  = gatesNum*gateSetNum0;
+    interface_actions[0].outstream_trace2cpu        = trace_fix0; 
+    interface_actions[0].outstream_size_trace2cpu   = 2*sizeof(int64_t)*gateSetNum0;
+    interface_actions[0].ticks_TraceMergeKernel     = 2*gateSetNum_splitted0;
+    pinterface_actions[0] = &interface_actions[0];
+
+
+    interface_actions[1].param_rows                 = rows;
+    interface_actions[1].param_cols                 = cols;
+    interface_actions[1].param_gatesNum             = gatesNum;
+    interface_actions[1].param_gateSetNum_0         = gateSetNum_splitted1;
+    interface_actions[1].param_gateSetNum_1         = gateSetNum_splitted1;
+    interface_actions[1].param_gateSetNum_2         = gateSetNum_splitted1;
+    interface_actions[1].param_gateSetNum_3         = gateSetNum_splitted1;
+    interface_actions[1].instream_gatesfromcpu      = gates_chunked1;
+    interface_actions[1].instream_size_gatesfromcpu = sizeof(gate_kernel_type)*gatesNum*gateSetNum1;
+    interface_actions[1].ticks_GateDataSplitKernel  = gatesNum*gateSetNum1;
+    interface_actions[1].outstream_trace2cpu        = trace_fix1; 
+    interface_actions[1].outstream_size_trace2cpu   = 2*sizeof(int64_t)*gateSetNum1;
+    interface_actions[1].ticks_TraceMergeKernel     = 2*gateSetNum_splitted1;
+    pinterface_actions[1] = &interface_actions[1]; 
+
+
+    interface_actions[2].param_rows                 = rows;
+    interface_actions[2].param_cols                 = cols;
+    interface_actions[2].param_gatesNum             = gatesNum;
+    interface_actions[2].param_gateSetNum_0         = gateSetNum_splitted2;
+    interface_actions[2].param_gateSetNum_1         = gateSetNum_splitted2;
+    interface_actions[2].param_gateSetNum_2         = gateSetNum_splitted2;
+    interface_actions[2].param_gateSetNum_3         = gateSetNum_splitted2;
+    interface_actions[2].instream_gatesfromcpu      = gates_chunked2;
+    interface_actions[2].instream_size_gatesfromcpu = sizeof(gate_kernel_type)*gatesNum*gateSetNum2;
+    interface_actions[2].ticks_GateDataSplitKernel  = gatesNum*gateSetNum2;
+    interface_actions[2].outstream_trace2cpu        = trace_fix2; 
+    interface_actions[2].outstream_size_trace2cpu   = 2*sizeof(int64_t)*gateSetNum2;
+    interface_actions[2].ticks_TraceMergeKernel     = 2*gateSetNum_splitted2;
+    pinterface_actions[2] = &interface_actions[2]; 
+
+
+    max_run_t* run0 = qgdDFE_run_group_nonblock(engine_group, pinterface_actions[0]);
+    max_run_t* run1 = qgdDFE_run_group_nonblock(engine_group, pinterface_actions[1]); 
+    max_run_t* run2 = qgdDFE_run_group_nonblock(engine_group, pinterface_actions[2]); 
+    max_wait(run0); 
+    max_wait(run1);
+    max_wait(run2);
+
+    free( gates_chunked0 );
+    gates_chunked0 = NULL;
+
+    free( gates_chunked1 );
+    gates_chunked1 = NULL;
+
+    free( gates_chunked2 );
+    gates_chunked2 = NULL;
+
+
+    double* trace0 = trace;
+    for (size_t jdx=0; jdx<gateSetNum_splitted0; jdx++ ) {      
+        trace0[jdx+0*gateSetNum_splitted0] = ((double)trace_fix0[8*jdx+4]/(1<<30));
+        trace0[jdx+1*gateSetNum_splitted0] = ((double)trace_fix0[8*jdx+5]/(1<<30));
+        trace0[jdx+2*gateSetNum_splitted0] = ((double)trace_fix0[8*jdx+6]/(1<<30));
+        trace0[jdx+3*gateSetNum_splitted0] = ((double)trace_fix0[8*jdx+7]/(1<<30));
+    }
+
+
+    double* trace1 = trace + gateSetNum0;
+    for (size_t jdx=0; jdx<gateSetNum_splitted1; jdx++ ) {      
+        trace1[jdx+0*gateSetNum_splitted1] = ((double)trace_fix1[8*jdx+4]/(1<<30));
+        trace1[jdx+1*gateSetNum_splitted1] = ((double)trace_fix1[8*jdx+5]/(1<<30));
+        trace1[jdx+2*gateSetNum_splitted1] = ((double)trace_fix1[8*jdx+6]/(1<<30));
+        trace1[jdx+3*gateSetNum_splitted1] = ((double)trace_fix1[8*jdx+7]/(1<<30));
+    }
+
+
+    double* trace2 = trace + gateSetNum0 + gateSetNum1;
+    for (size_t jdx=0; jdx<gateSetNum_splitted2; jdx++ ) {      
+        trace2[jdx+0*gateSetNum_splitted2] = ((double)trace_fix2[8*jdx+4]/(1<<30));
+        trace2[jdx+1*gateSetNum_splitted2] = ((double)trace_fix2[8*jdx+5]/(1<<30));
+        trace2[jdx+2*gateSetNum_splitted2] = ((double)trace_fix2[8*jdx+6]/(1<<30));
+        trace2[jdx+3*gateSetNum_splitted2] = ((double)trace_fix2[8*jdx+7]/(1<<30));
+    }
+
+
+    free( trace_fix0 );
+    trace_fix0 = NULL;
+
+    free( trace_fix1 );
+    trace_fix1 = NULL;
+
+    free( trace_fix2 );
+    trace_fix2 = NULL;
+
+
+#else
 
    // allocate memory for output    
    int64_t* trace_fix = (int64_t*)malloc( 2*sizeof(int64_t)*gateSetNum );  
@@ -355,8 +807,8 @@ int calcqgdKernelDFE_oneShot(size_t dim, gate_kernel_type* gates, int gatesNum, 
 
     qgdDFE_actions_t interface_actions;
 
-    interface_actions.param_element_num          = element_num;
-    interface_actions.param_dim                  = dim;
+    interface_actions.param_rows                 = rows;
+    interface_actions.param_cols                 = cols;
     interface_actions.param_gatesNum             = gatesNum;
     interface_actions.param_gateSetNum_0         = gateSetNum_splitted;
     interface_actions.param_gateSetNum_1         = gateSetNum_splitted;
@@ -387,178 +839,6 @@ int calcqgdKernelDFE_oneShot(size_t dim, gate_kernel_type* gates, int gatesNum, 
     free( trace_fix );
     trace_fix = NULL;
 
-
-#else
-
-
-    int gateSetNum_splitted0 = gateSetNum_splitted/2;
-    int gateSetNum_splitted1 = gateSetNum_splitted - gateSetNum_splitted0;
-    int gateSetNum0 = gateSetNum_splitted0*4;
-    int gateSetNum1 = gateSetNum_splitted1*4;
-
-   // allocate memory for output    
-   int64_t* trace_fix0 = (int64_t*)malloc( 2*sizeof(int64_t)*gateSetNum0 ); 
-   int64_t* trace_fix1 = (int64_t*)malloc( 2*sizeof(int64_t)*gateSetNum1 ); 
-
-
-    gate_kernel_type* gates0 = gates;
-    gate_kernel_type* gates1 = gates + gatesNum*gateSetNum0;
-
-    // organize input gates into 32 bit chunks
-    void* gates_chunked0 = malloc(sizeof(gate_kernel_type)*gatesNum*gateSetNum0); ////TODO gateSetNum_splitted0
-    void* gates_chunked1 = malloc(sizeof(gate_kernel_type)*gatesNum*gateSetNum1); ////TODO gateSetNum_splitted1
-
-    int idx_chunked = 0;
-    for( int iterationNum_idx=0; iterationNum_idx<iterationNum; iterationNum_idx++ ) {
-        for( int gateSet_idx=0; gateSet_idx<gateSetNum_splitted0; gateSet_idx++ ) { ////TODO gateSetNum_splitted0
-            for( int gate_idx=0; gate_idx<get_chained_gates_num(); gate_idx++ ) {
-
-                int idx_orig    = gateSet_idx*gatesNum + iterationNum_idx*get_chained_gates_num() + gate_idx;
-//printf("%d, %d\n", idx_chunked, idx_orig);
- 
-                const void* gates_0 = (void*)&gates0[idx_orig + 0*gatesNum*gateSetNum_splitted0]; ////TODO gateSetNum_splitted0
-                const void* gates_1 = (void*)&gates0[idx_orig + 1*gatesNum*gateSetNum_splitted0]; ////TODO gateSetNum_splitted0
-                const void* gates_2 = (void*)&gates0[idx_orig + 2*gatesNum*gateSetNum_splitted0]; ////TODO gateSetNum_splitted0
-                const void* gates_3 = (void*)&gates0[idx_orig + 3*gatesNum*gateSetNum_splitted0]; ////TODO gateSetNum_splitted0
-
-                memcpy( gates_chunked0 + idx_chunked*64 + 0, gates_0, 4 );
-                memcpy( gates_chunked0 + idx_chunked*64 + 4, gates_1, 4 );
-                memcpy( gates_chunked0 + idx_chunked*64 + 8, gates_2, 4 );
-                memcpy( gates_chunked0 + idx_chunked*64 + 12, gates_3, 4 );
-
-                memcpy( gates_chunked0 + idx_chunked*64 + 16, gates_0+4, 4 );
-                memcpy( gates_chunked0 + idx_chunked*64 + 20, gates_1+4, 4 );
-                memcpy( gates_chunked0 + idx_chunked*64 + 24, gates_2+4, 4 );
-                memcpy( gates_chunked0 + idx_chunked*64 + 28, gates_3+4, 4 );
-
-                memcpy( gates_chunked0 + idx_chunked*64 + 32, gates_0+8, 4 );
-                memcpy( gates_chunked0 + idx_chunked*64 + 36, gates_1+8, 4 );
-                memcpy( gates_chunked0 + idx_chunked*64 + 40, gates_2+8, 4 );
-                memcpy( gates_chunked0 + idx_chunked*64 + 44, gates_3+8, 4 );
-
-                memcpy( gates_chunked0 + idx_chunked*64 + 48, gates_0+12, 4 );
-                memcpy( gates_chunked0 + idx_chunked*64 + 52, gates_1+12, 4 );
-                memcpy( gates_chunked0 + idx_chunked*64 + 56, gates_2+12, 4 );
-                memcpy( gates_chunked0 + idx_chunked*64 + 60, gates_3+12, 4 );
-
-                idx_chunked++;
-
-            }
-        }
-    }
-
-
-    idx_chunked = 0;
-    for( int iterationNum_idx=0; iterationNum_idx<iterationNum; iterationNum_idx++ ) {
-        for( int gateSet_idx=0; gateSet_idx<gateSetNum_splitted1; gateSet_idx++ ) { ////TODO gateSetNum_splitted1
-            for( int gate_idx=0; gate_idx<get_chained_gates_num(); gate_idx++ ) {
-
-                int idx_orig    = gateSet_idx*gatesNum + iterationNum_idx*get_chained_gates_num() + gate_idx;
-//printf("%d, %d\n", idx_chunked, idx_orig);
- 
-                const void* gates_0 = (void*)&gates1[idx_orig + 0*gatesNum*gateSetNum_splitted1]; ////TODO gateSetNum_splitted1
-                const void* gates_1 = (void*)&gates1[idx_orig + 1*gatesNum*gateSetNum_splitted1]; ////TODO gateSetNum_splitted1
-                const void* gates_2 = (void*)&gates1[idx_orig + 2*gatesNum*gateSetNum_splitted1]; ////TODO gateSetNum_splitted1
-                const void* gates_3 = (void*)&gates1[idx_orig + 3*gatesNum*gateSetNum_splitted1]; ////TODO gateSetNum_splitted1
-
-                memcpy( gates_chunked1 + idx_chunked*64 + 0, gates_0, 4 );
-                memcpy( gates_chunked1 + idx_chunked*64 + 4, gates_1, 4 );
-                memcpy( gates_chunked1 + idx_chunked*64 + 8, gates_2, 4 );
-                memcpy( gates_chunked1 + idx_chunked*64 + 12, gates_3, 4 );
-
-                memcpy( gates_chunked1 + idx_chunked*64 + 16, gates_0+4, 4 );
-                memcpy( gates_chunked1 + idx_chunked*64 + 20, gates_1+4, 4 );
-                memcpy( gates_chunked1 + idx_chunked*64 + 24, gates_2+4, 4 );
-                memcpy( gates_chunked1 + idx_chunked*64 + 28, gates_3+4, 4 );
-
-                memcpy( gates_chunked1 + idx_chunked*64 + 32, gates_0+8, 4 );
-                memcpy( gates_chunked1 + idx_chunked*64 + 36, gates_1+8, 4 );
-                memcpy( gates_chunked1 + idx_chunked*64 + 40, gates_2+8, 4 );
-                memcpy( gates_chunked1 + idx_chunked*64 + 44, gates_3+8, 4 );
-
-                memcpy( gates_chunked1 + idx_chunked*64 + 48, gates_0+12, 4 );
-                memcpy( gates_chunked1 + idx_chunked*64 + 52, gates_1+12, 4 );
-                memcpy( gates_chunked1 + idx_chunked*64 + 56, gates_2+12, 4 );
-                memcpy( gates_chunked1 + idx_chunked*64 + 60, gates_3+12, 4 );
-
-                idx_chunked++;
-
-            }
-        }
-    }
-
-
-    qgdDFE_actions_t *pinterface_actions[2];
-    qgdDFE_actions_t interface_actions[2];
-
-    interface_actions[0].param_element_num          = element_num;
-    interface_actions[0].param_dim                  = dim;
-    interface_actions[0].param_gatesNum             = gatesNum;
-    interface_actions[0].param_gateSetNum_0         = gateSetNum_splitted0; ////TODO gateSetNum_splitted0
-    interface_actions[0].param_gateSetNum_1         = gateSetNum_splitted0; ////TODO gateSetNum_splitted0
-    interface_actions[0].param_gateSetNum_2         = gateSetNum_splitted0; ////TODO gateSetNum_splitted0
-    interface_actions[0].param_gateSetNum_3         = gateSetNum_splitted0; ////TODO gateSetNum_splitted0
-    interface_actions[0].instream_gatesfromcpu      = gates_chunked0;
-    interface_actions[0].instream_size_gatesfromcpu = sizeof(gate_kernel_type)*gatesNum*gateSetNum0; ////TODO gateSetNum0
-    interface_actions[0].ticks_GateDataSplitKernel  = gatesNum*gateSetNum0; ////TODO gateSetNum0
-    interface_actions[0].outstream_trace2cpu        = trace_fix0; 
-    interface_actions[0].outstream_size_trace2cpu   = 2*sizeof(int64_t)*gateSetNum0; ////TODO gateSetNum0
-    interface_actions[0].ticks_TraceMergeKernel     = 2*gateSetNum_splitted0;  ////TODO gateSetNum_splitted0
-    pinterface_actions[0] = &interface_actions[0];
-
-
-    interface_actions[1].param_element_num          = element_num;
-    interface_actions[1].param_dim                  = dim;
-    interface_actions[1].param_gatesNum             = gatesNum;
-    interface_actions[1].param_gateSetNum_0         = gateSetNum_splitted1; ////TODO gateSetNum_splitted1
-    interface_actions[1].param_gateSetNum_1         = gateSetNum_splitted1; ////TODO gateSetNum_splitted1
-    interface_actions[1].param_gateSetNum_2         = gateSetNum_splitted1; ////TODO gateSetNum_splitted1
-    interface_actions[1].param_gateSetNum_3         = gateSetNum_splitted1; ////TODO gateSetNum_splitted1
-    interface_actions[1].instream_gatesfromcpu      = gates_chunked1;
-    interface_actions[1].instream_size_gatesfromcpu = sizeof(gate_kernel_type)*gatesNum*gateSetNum1; ////TODO gateSetNum1
-    interface_actions[1].ticks_GateDataSplitKernel  = gatesNum*gateSetNum1; ////TODO gateSetNum1
-    interface_actions[1].outstream_trace2cpu        = trace_fix1; 
-    interface_actions[1].outstream_size_trace2cpu   = 2*sizeof(int64_t)*gateSetNum1; ////TODO gateSetNum1
-    interface_actions[1].ticks_TraceMergeKernel     = 2*gateSetNum_splitted1; ////TODO gateSetNum_splitted1
-    pinterface_actions[1] = &interface_actions[1]; 
-
-
-    max_run_t* run0 = qgdDFE_run_group_nonblock(engine_group, pinterface_actions[0]);
-    max_run_t* run1 = qgdDFE_run_group_nonblock(engine_group, pinterface_actions[1]); 
-    max_wait(run0); 
-    max_wait(run1);
-
-    free( gates_chunked0 );
-    gates_chunked0 = NULL;
-
-    free( gates_chunked1 );
-    gates_chunked1 = NULL;
-
-
-    double* trace0 = trace;
-    for (size_t jdx=0; jdx<gateSetNum_splitted0; jdx++ ) {      
-        trace0[jdx+0*gateSetNum_splitted0] = ((double)trace_fix0[8*jdx+4]/(1<<30));
-        trace0[jdx+1*gateSetNum_splitted0] = ((double)trace_fix0[8*jdx+5]/(1<<30));
-        trace0[jdx+2*gateSetNum_splitted0] = ((double)trace_fix0[8*jdx+6]/(1<<30));
-        trace0[jdx+3*gateSetNum_splitted0] = ((double)trace_fix0[8*jdx+7]/(1<<30));
-    }
-
-
-    double* trace1 = trace + gateSetNum0;
-    for (size_t jdx=0; jdx<gateSetNum_splitted1; jdx++ ) {      
-        trace1[jdx+0*gateSetNum_splitted1] = ((double)trace_fix1[8*jdx+4]/(1<<30));
-        trace1[jdx+1*gateSetNum_splitted1] = ((double)trace_fix1[8*jdx+5]/(1<<30));
-        trace1[jdx+2*gateSetNum_splitted1] = ((double)trace_fix1[8*jdx+6]/(1<<30));
-        trace1[jdx+3*gateSetNum_splitted1] = ((double)trace_fix1[8*jdx+7]/(1<<30));
-    }
-
-
-    free( trace_fix0 );
-    trace_fix0 = NULL;
-
-    free( trace_fix1 );
-    trace_fix1 = NULL;
-
 #endif
 
   
@@ -572,7 +852,7 @@ int calcqgdKernelDFE_oneShot(size_t dim, gate_kernel_type* gates, int gatesNum, 
  * \brief ???????????
  * 
  */
-int calcqgdKernelDFE(size_t dim, gate_kernel_type* gates, int gatesNum, int gateSetNum, double* trace )
+int calcqgdKernelDFE(size_t rows, size_t cols, gate_kernel_type* gates, int gatesNum, int gateSetNum, double* trace )
 {
 
 
@@ -590,7 +870,7 @@ int calcqgdKernelDFE(size_t dim, gate_kernel_type* gates, int gatesNum, int gate
            gateSetToProcess = gateSetNum - processedGateSet;     
        }
 
-       calcqgdKernelDFE_oneShot(dim, gates+processedGateSet*gatesNum, gatesNum, gateSetToProcess, trace+processedGateSet );
+       calcqgdKernelDFE_oneShot(rows, cols, gates+processedGateSet*gatesNum, gatesNum, gateSetToProcess, trace+processedGateSet );
        
        
        processedGateSet = processedGateSet + gateSetToProcess;
