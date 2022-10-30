@@ -88,13 +88,13 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 	}
 	
 	
-	public static DFELink slrCrossingChainWithClock(String name, String suffix, DFELink input, int slrStart, int slrEnd, int regPerX, ManagerRouting owner, ManagerClock clock) //-1 for PCIE
+	public static DFELink slrCrossingChainWithClock(String name, String suffix, DFELink input, int slrStart, int slrEnd, int regPerX, ManagerRouting owner, ManagerClock[] clock) //-1 for PCIE
 	{
 		if (owner != null) {
 			for (int i = slrStart + (slrEnd >= slrStart ? 1 : -1); slrEnd >= slrStart ? i < slrEnd : i > slrEnd; ) {
 				selectSLR(i, (XilinxAlveoU250Manager)owner);
 				Fanout fo = owner.fanout(name + "Fanout" + suffix + i);
-				fo.setClock( clock );
+				if (clock[i] != null) fo.setClock( clock[i] );
 				unselectSLR((XilinxAlveoU250Manager)owner);
 				DFELink inp = fo.getInput();            
 				inp.setAdditionalRegisters(regPerX);
@@ -167,16 +167,21 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 		List<KernelBlock> kernel_list = new ArrayList<KernelBlock>();	
 		
 		// slow clock region for gate and memory address generators
-		ManagerClock slowClock = generateStaticClock("slowClock", 150);
-		ManagerClock memoryClock = generateStaticClock("memoryClock_"+String.valueOf(idx), 250);
+		ManagerClock[] slowClock = new ManagerClock[] { generateStaticClock("slowClock0", 150), generateStaticClock("slowClock1", 150),
+            generateStaticClock("slowClock2", 150), generateStaticClock("slowClock3", 150) };
+		ManagerClock[] memoryClock = new ManagerClock[] { generateStaticClock("memoryClock_"+String.valueOf(0), 250),
+            generateStaticClock("memoryClock_"+String.valueOf(1), 250),
+            generateStaticClock("memoryClock_"+String.valueOf(2), 250),
+            generateStaticClock("memoryClock_"+String.valueOf(3), 250) };
 		
-	
+	    ManagerClock[] fastClock = new ManagerClock[] { generateStaticClock("fastClock0", 350), generateStaticClock("fastClock1", 350),
+            generateStaticClock("fastClock2", 350), generateStaticClock("fastClock3", 350) };
 
 
                 // kernels to split input data comming from CPU to SLRs
 		pushNamedRegion(named_region_list[0]);
 		KernelBlock gateDataSplitKernel = addKernel(new GateDataSplitKernel(makeKernelParameters("GateDataSplitKernel") ) );
-		gateDataSplitKernel.setClock( slowClock );
+		gateDataSplitKernel.setClock( slowClock[0] );
 		DFELink gatesDataCPU = gateDataSplitKernel.getInput( "gatesDataCPU" );
 		gatesDataCPU.setAdditionalRegisters(regPerX);
 		DFELink gatesfromcpu = addStreamFromCPU("gatesfromcpu");
@@ -186,7 +191,7 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 		
 		
 		Fanout inputSplitter = fanout("inputSplitFanout");
-		inputSplitter.setClock( slowClock );
+		inputSplitter.setClock( slowClock[0] );
 		DFELink fromCPU = addStreamFromCPU("fromcpu");
 		fromCPU.setAdditionalRegisters(regPerX);	
 		DFELink inputSplitterStream = inputSplitter.getInput();
@@ -195,7 +200,7 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 
 
 		KernelBlock traceMergeKernel = addKernel(new TraceMergeKernel(makeKernelParameters("TraceMergeKernel") ) );
-		traceMergeKernel.setClock( slowClock );
+		traceMergeKernel.setClock( slowClock[0] );
 		DFELink mergedTrace = traceMergeKernel.getOutput( "trace" );
 		mergedTrace.setAdditionalRegisters(regPerX);
 		DFELink trace2cpu = addStreamToCPU("trace2cpu");
@@ -217,13 +222,13 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 
 	                /////////////////// CPU - LMEM communication ///////////////////////
 			mcg_cpu2lmem_kernel_list.add( addKernel(new MemCommGeneratorKernel(makeKernelParameters("CPU2LMEMCommGenKernel_"+String.valueOf(idx)), 1, 1, burstCountOneShot, false)) );
-			mcg_cpu2lmem_kernel_list[idx].setClock( slowClock );
+			mcg_cpu2lmem_kernel_list[idx].setClock( slowClock[idx] );
 
 
 			mcg_fromlmem_kernel_list.add( addKernel(new MemCommGeneratorKernel(makeKernelParameters("FromLMEMCommGenKernel_"+String.valueOf(idx)), 0, 1, burstCountOneShot, idx==0)) );
 			mcg_tolmem_kernel_list.add( addKernel(new MemCommGeneratorKernel(makeKernelParameters("ToLMEMCommGenKernel_"+String.valueOf(idx)), 1, 0, burstCountOneShot, false)) );
-			mcg_fromlmem_kernel_list[idx].setClock( memoryClock );
-			mcg_tolmem_kernel_list[idx].setClock( memoryClock );
+			mcg_fromlmem_kernel_list[idx].setClock( memoryClock[idx] );
+			mcg_tolmem_kernel_list[idx].setClock( memoryClock[idx] );
 
 
 			cpu2lmem_list.add( iface_list[idx].addStreamToLMem("cpu2lmem_"+String.valueOf(idx), mcg_cpu2lmem_kernel_list[idx].getOutput("cmdStream")) );
@@ -244,7 +249,7 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 			/////////////////// Computing kernels ///////////////////////				
 
 			gateKernel_list.add( addKernel(new GateKernelGeneratorKernel(makeKernelParameters("GateKernelGeneratorKernel_"+String.valueOf(idx)), dim, chainedGatesNum, gatesNumPerKernel, idx==0)) ); 
-			gateKernel_list[idx].setClock( slowClock );
+			gateKernel_list[idx].setClock( slowClock[idx] );
 			
 			DFELink gatesFromCPU = gateDataSplitKernel.getOutput("gatesDataCPUchunk_"+String.valueOf(idx)); 
 			gatesFromCPU.setAdditionalRegisters(regPerX);
@@ -257,8 +262,7 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 			gatesCPU <== gatesFromCPU;
 
 
-			// fast clock for gate operations
-			ManagerClock fastClock = generateStaticClock("fastClock", 350);
+			ManagerClock fastClock = generateStaticClock("fastClock" + str(idx), 350);
 
 			
 			for (int gate_idx=0; gate_idx<chainedGatesNum; gate_idx++) {
