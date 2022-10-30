@@ -16,7 +16,6 @@ import com.maxeler.maxcompiler.v2.managers.custom.stdlib.LMemConfig;
 
 import com.maxeler.platform.max5.manager.ImplementationStrategy;
 import com.maxeler.platform.max5.manager.BuildConfig;
-//import com.maxeler.maxcompiler.v2.kernelcompiler.KernelConfiguration;
 import com.maxeler.maxcompiler.v2.managers.custom.api.ManagerRouting;
 import com.maxeler.maxcompiler.v2.managers.custom.blocks.Fanout;
 import com.maxeler.maxcompiler.v2.managers.custom.ManagerClock;
@@ -27,6 +26,9 @@ import com.maxeler.conf.base.MaxCompilerBuildConf;
 import com.maxeler.maxcompiler.v2.managers.custom.api.ManagerPCIe.StreamMode;
 import com.maxeler.platform.max5.manager.SynthesisStrategy;
 import com.maxeler.maxcompiler.v2.kernelcompiler.KernelConfiguration.OptimizationOptions;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelConfiguration;
+
+
 
 import java.util.ArrayList;
 import java.util.List;
@@ -42,7 +44,7 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 	int dim_over_2 = dim/2;
 	int burstCountOneShot = 100;
 	static int chainedGatesNum = 6;
-	static int gatesNumPerKernel = 18;
+	static int gatesNumPerKernel = 19;
 	static int totalGatesInChain = chainedGatesNum*gatesNumPerKernel;
 
 /**
@@ -121,9 +123,23 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 		
 //pushFanoutLimit(24);
 
-		OptimizationOptions opt = getCurrentKernelConfig().optimization;
-		opt.setUseGlobalClockLinesRst(true);
+		// obtain current default kernel config
+		KernelConfiguration conf_default = getCurrentKernelConfig();
+		
+		// make a copy of default kernel config to create kernels with custom config for the gate operations
+		KernelConfiguration conf_gate = new KernelConfiguration(conf_default);
+
+		// set custom properties for gate kernels
+		OptimizationOptions opt = conf_gate.optimization;
+
+		// use global clock buffer  for the gate operations
+		opt.setUseGlobalClockBuffer( true );
+
+		//opt.setUseGlobalClockLinesRst(true);
 		//opt.setUseGlobalClockBuffer(true);
+
+
+
 		
 		
 		//getLMemGlobalConfig().setMemoryFrequency(LMemFrequency.LMEM_1200MHZ);
@@ -136,22 +152,15 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 		named_region_list.add( XilinxAlveoU250Manager.NamedRegion.SLR3 );						
 		
 		List<LMemInterface> iface_list = new ArrayList<LMemInterface>();
-		//List<LMemGlobalConfig.PriorityArbitrationType> priorityList = new ArrayList<LMemGlobalConfig.PriorityArbitrationType>();
-		//priorityList.add( LMemGlobalConfig.PriorityArbitrationType.LOW );  // read stream
-		//priorityList.add( LMemGlobalConfig.PriorityArbitrationType.LOW );  // read stream
-		//priorityList.add( LMemGlobalConfig.PriorityArbitrationType.HIGH ); // write stream
-		//priorityList.add( LMemGlobalConfig.PriorityArbitrationType.HIGH ); // write stream
 		
                 // memory command gererator kernels (mcg)
 		List<KernelBlock> mcg_cpu2lmem_kernel_list = new ArrayList<KernelBlock>();
-//		List<KernelBlock> mcg_lmem2cpu_kernel_list = new ArrayList<KernelBlock>();
 
 
 		List<KernelBlock> mcg_fromlmem_kernel_list = new ArrayList<KernelBlock>();
 		List<KernelBlock> mcg_tolmem_kernel_list = new ArrayList<KernelBlock>();
 		
 		List<DFELink> cpu2lmem_list = new ArrayList<DFELink>();	
-//		List<DFELink> lmem2cpu_list = new ArrayList<DFELink>();
 		
 		
 		List<KernelBlock> gateKernel_list = new ArrayList<KernelBlock>();
@@ -159,7 +168,10 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 		
 		// slow clock region for gate and memory address generators
 		ManagerClock slowClock = generateStaticClock("slowClock", 150);
-		ManagerClock memoryClock = generateStaticClock("memoryClock", 250);	
+		ManagerClock memoryClock = generateStaticClock("memoryClock_"+String.valueOf(idx), 250);
+		
+	
+
 
                 // kernels to split input data comming from CPU to SLRs
 		pushNamedRegion(named_region_list[0]);
@@ -196,23 +208,15 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 		
 		
 			pushNamedRegion(named_region_list[idx]);
-/*			
-			// slow clock region for gate and memory address generators
-			ManagerClock slowClock = generateStaticClock("slowClock_"+String.valueOf(idx), 150);
-			ManagerClock memoryClock = generateStaticClock("memoryClock_"+String.valueOf(idx), 270);						
-*/			
+
+			
+
 			// create memory interface			
 			iface_list.add( addLMemInterface("LMEMiface_"+String.valueOf(idx), named_region_list[idx]) );
-/*
-			iface_list[idx].getLMemConfig().setArbitrationMode(LMemConfig.ArbitrationMode.PRIORITY);
-			iface_list[idx].getLMemConfig().setPriorityArbitrationList(priorityList);
-*/
-
 
 
 	                /////////////////// CPU - LMEM communication ///////////////////////
 			mcg_cpu2lmem_kernel_list.add( addKernel(new MemCommGeneratorKernel(makeKernelParameters("CPU2LMEMCommGenKernel_"+String.valueOf(idx)), 1, 1, burstCountOneShot, false)) );
-//			mcg_lmem2cpu_kernel_list.add( addKernel(new MemCommGeneratorKernel(makeKernelParameters("LMEM2CPUCommGenKernel_"+String.valueOf(idx)), 1, 0, burstCountOneShot)) );
 			mcg_cpu2lmem_kernel_list[idx].setClock( slowClock );
 
 
@@ -224,21 +228,17 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 
 			cpu2lmem_list.add( iface_list[idx].addStreamToLMem("cpu2lmem_"+String.valueOf(idx), mcg_cpu2lmem_kernel_list[idx].getOutput("cmdStream")) );
 			
-			
-//			lmem2cpu_list.add( iface_list[idx].addStreamFromLMem("lmem2cpu_"+String.valueOf(idx), mcg_lmem2cpu_kernel_list[idx].getOutput("cmdStream")) );			
+				
 			
 			DFELink FromFanout = inputSplitter.addOutput( "fromFanout_"+String.valueOf(idx));
-			//DFELink FromCPU = addStreamFromCPU("fromcpu_"+String.valueOf(idx));// , StreamMode.LOW_LATENCY_ENABLED);
 			FromFanout.setAdditionalRegisters(regPerX_CPU);
 			
 			popRegion();
 			FromFanout = slrCrossingChainWithClock("inputfromcpu", Integer.toString(idx), FromFanout, -1, idx, regPerX, this, slowClock);		
-			//FromCPU = slrCrossingChain("inputfromcpu", Integer.toString(idx), FromCPU, -1, idx, regPerX, this);					
 			pushNamedRegion(named_region_list[idx]);
 			
 			cpu2lmem_list[idx].setAdditionalRegisters(regPerX_LMEM);			
-			cpu2lmem_list[idx] <== FromFanout;
-//			addStreamToCPU("tocpu_"+String.valueOf(idx)) <== lmem2cpu_list[idx];		
+			cpu2lmem_list[idx] <== FromFanout;	
 			
 			
 			/////////////////// Computing kernels ///////////////////////				
@@ -246,20 +246,26 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 			gateKernel_list.add( addKernel(new GateKernelGeneratorKernel(makeKernelParameters("GateKernelGeneratorKernel_"+String.valueOf(idx)), dim, chainedGatesNum, gatesNumPerKernel, idx==0)) ); 
 			gateKernel_list[idx].setClock( slowClock );
 			
-			DFELink gatesFromCPU = gateDataSplitKernel.getOutput("gatesDataCPUchunk_"+String.valueOf(idx)); //addStreamFromCPU("gatesfromcpu_"+String.valueOf(idx));//, StreamMode.LOW_LATENCY_ENABLED);
+			DFELink gatesFromCPU = gateDataSplitKernel.getOutput("gatesDataCPUchunk_"+String.valueOf(idx)); 
 			gatesFromCPU.setAdditionalRegisters(regPerX);
 			popRegion();
 			gatesFromCPU = slrCrossingChainWithClock("gatesfromcpu", Integer.toString(idx), gatesFromCPU, -1, idx, regPerX, this, slowClock);		
-			//gatesFromCPU = slrCrossingChain("gatesfromcpu", Integer.toString(idx), gatesFromCPU, -1, idx, regPerX, this);					
 			pushNamedRegion(named_region_list[idx]);
 
 			DFELink gatesCPU = gateKernel_list[idx].getInput("gatesCPU");	
 			gatesCPU.setAdditionalRegisters(regPerX);
 			gatesCPU <== gatesFromCPU;
-			
+
+
+			// fast clock for gate operations
+			ManagerClock fastClock = generateStaticClock("fastClock", 350);
+
 			
 			for (int gate_idx=0; gate_idx<chainedGatesNum; gate_idx++) {
-				kernel_list.add( addKernel(new qgdDFEKernel(makeKernelParameters("qgdDFEKernel_"+String.valueOf(idx)+"_"+String.valueOf(gate_idx)), dim, gatesNumPerKernel, gate_idx==chainedGatesNum-1, idx==0)) );
+				KernelBlock gateKernel = addKernel(new qgdDFEKernel(makeKernelParameters("qgdDFEKernel_"+String.valueOf(idx)+"_"+String.valueOf(gate_idx), conf_gate), dim, gatesNumPerKernel, gate_idx==chainedGatesNum-1, idx==0));
+				gateKernel.setClock( fastClock );
+				kernel_list.add( gateKernel );
+				
 			}
 		
 
@@ -302,20 +308,16 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 
 					DFELink trace2merge = traceMergeKernel.getInput( "trace_"+String.valueOf(idx));
 					trace2merge.setAdditionalRegisters(regPerX_CPU);
-					//DFELink trace2cpu = addStreamToCPU("trace2cpu_"+String.valueOf(idx));//, StreamMode.LOW_LATENCY_ENABLED);
-					//trace2cpu.setAdditionalRegisters(regPerX_CPU);
 
 					DFELink trace = kernel_list[idx*chainedGatesNum+gate_idx].getOutput("trace");				
 					trace.setAdditionalRegisters(regPerX);
 
 					popRegion();
-					trace = slrCrossingChainWithClock("trace2cpu", Integer.toString(idx), trace, idx, -1, regPerX, this, slowClock);		
-					//gatesFromCPU = slrCrossingChain("gatesfromcpu", Integer.toString(idx), gatesFromCPU, -1, idx, regPerX, this);					
+					trace = slrCrossingChainWithClock("trace2cpu", Integer.toString(idx), trace, idx, -1, regPerX, this, slowClock);				
 					pushNamedRegion(named_region_list[idx]);
 
 
 					trace2merge <== trace;
-					//trace2cpu <== trace;
 				}
 
 			}							
@@ -326,8 +328,7 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 		}
 
 					
-                
-		
+                	
 
 
 
@@ -348,7 +349,6 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 		InterfaceParam size         = rows*cols;
 		InterfaceParam gatesNum     = ei.addParam("gatesNum", CPUTypes.UINT16);
 
-		//InterfaceParam gateSetNum     = ei.addParam("gateSetNum", CPUTypes.INT16);
 
 		List<InterfaceParam> gateSetNum_list = new ArrayList<InterfaceParam>();		
 		for (int idx=0; idx<4; idx++) {
@@ -364,8 +364,6 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 					ei.setScalar("qgdDFEKernel_"+String.valueOf(idx)+"_"+String.valueOf(gate_idx), "IterationNum", gatesNum/chainedGatesNum/gatesNumPerKernel);
 					ei.setScalar("qgdDFEKernel_"+String.valueOf(idx)+"_"+String.valueOf(gate_idx), "GateSetNum", gateSetNum_list[idx]);
 				        ei.setScalar("qgdDFEKernel_"+String.valueOf(idx)+"_"+String.valueOf(gate_idx), "cols", cols);
-					//ei.setStream("trace2cpu_"+String.valueOf(idx), CPUTypes.VOID, 16*gateSetNum_list[idx] );
-					//ei.setStream("trace2cpu_"+String.valueOf(idx), CPUTypes.VOID, 16*gateSetNum );
 				}
 			}
 		}
@@ -375,8 +373,6 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 
                 // starting address of LMEM
 		InterfaceParam zero = ei.addConstant(0l);
-//ei.setLMemLinear("inA", zero, sizeInBytes);
-//ei.setLMemLinear("outA", sizeInBytes, sizeInBytes);
 		
 		// set parameters for the address generator kernel
 		InterfaceParam burstSize = ei.addConstant(64);  //for single DIMM
@@ -393,63 +389,44 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 
 		//InterfaceParam ticksMax = burstNum*chunks*gatesNum*gateSetNum/chainedGatesNum;
 		for( int idx=0; idx<4; idx++) {
-//			ei.setScalar("FromLMEMCommGenKernel_"+String.valueOf(idx), "IterationNum", gatesNum/chainedGatesNum/gatesNumPerKernel);
 			ei.setScalar("FromLMEMCommGenKernel_"+String.valueOf(idx), "dynAddrOffsetMax", burstNum*(gateSetNum_list[idx]-1));
 			ei.setScalar("FromLMEMCommGenKernel_"+String.valueOf(idx), "chunkNum", chunks/LMEMtimeScale);
 			ei.setScalar("FromLMEMCommGenKernel_"+String.valueOf(idx), "burstNum", burstNum);
-			//ei.setScalar("FromLMEMCommGenKernel_"+String.valueOf(idx), "addrOffset", burstNum);
-			//ei.setScalar("FromLMEMCommGenKernel_"+String.valueOf(idx), "dynAddrOffset", burstNum);
 
-//			ei.setScalar("ToLMEMCommGenKernel_"+String.valueOf(idx), "IterationNum", gatesNum/chainedGatesNum/gatesNumPerKernel);
 			ei.setScalar("ToLMEMCommGenKernel_"+String.valueOf(idx), "dynAddrOffsetMax", burstNum*(gateSetNum_list[idx]-1));
 			ei.setScalar("ToLMEMCommGenKernel_"+String.valueOf(idx), "chunkNum", chunks/LMEMtimeScale);
 			ei.setScalar("ToLMEMCommGenKernel_"+String.valueOf(idx), "burstNum", burstNum);
-			//ei.setScalar("ToLMEMCommGenKernel_"+String.valueOf(idx), "addrOffset", burstNum);
-			//ei.setScalar("ToLMEMCommGenKernel_"+String.valueOf(idx), "dynAddrOffset", burstNum);
 		}
 
-		//ei.setTicks("paramKernel", ei.addConstant(1l));
 
 
 		for( int idx=0; idx<4; idx++) {
 			for (int gate_idx=0; gate_idx<chainedGatesNum; gate_idx++) {
 				ei.setTicks("qgdDFEKernel_"+String.valueOf(idx)+"_"+String.valueOf(gate_idx), ticksMax_list[idx]);
-				//ei.setTicks("qgdDFEKernel_"+String.valueOf(idx)+"_"+String.valueOf(gate_idx), ticksMax);
 			}
 			ei.setTicks("FromLMEMCommGenKernel_"+String.valueOf(idx), ticksMax_list[idx]/LMEMtimeScale);
 			ei.setTicks("ToLMEMCommGenKernel_"+String.valueOf(idx), ticksMax_list[idx]/LMEMtimeScale);
-			//ei.setTicks("FromLMEMCommGenKernel_"+String.valueOf(idx), ticksMax);
-			//ei.setTicks("ToLMEMCommGenKernel_"+String.valueOf(idx), ticksMax);
 			ei.setTicks("CPU2LMEMCommGenKernel_"+String.valueOf(idx), zero);
-//			ei.setTicks("LMEM2CPUCommGenKernel_"+String.valueOf(idx), zero);
-			ei.setTicks("GateKernelGeneratorKernel_"+String.valueOf(idx), gatesNum*gateSetNum_list[idx]*4);			
-			//ei.setTicks("GateKernelGeneratorKernel_"+String.valueOf(idx), gatesNum*gateSetNum);	
+			ei.setTicks("GateKernelGeneratorKernel_"+String.valueOf(idx), gatesNum*gateSetNum_list[idx]*4);	
 		}
 
 		for( int idx=0; idx<4; idx++) {
 			ei.setLMemInterruptOn("outA_"+String.valueOf(idx));
 		}		
 
-		//ei.setLMemInterruptOn("inA");	
 
 
 
 		for( int idx=0; idx<4; idx++) {
 			ei.ignoreLMem("inA_"+String.valueOf(idx));
 		}
-		//ei.ignoreLMem("outA");
 		
 		ei.ignoreStream("fromcpu");					
 
 		for( int idx=0; idx<4; idx++) {
 			ei.ignoreKernel("CPU2LMEMCommGenKernel_"+String.valueOf(idx));
-//			ei.ignoreKernel("LMEM2CPUCommGenKernel_"+String.valueOf(idx));
 			
-//			ei.ignoreStream("tocpu_"+String.valueOf(idx));		
-			//ei.ignoreStream("fromcpu_"+String.valueOf(idx));
-
-			ei.ignoreLMem("cpu2lmem_"+String.valueOf(idx));
-//			ei.ignoreLMem("lmem2cpu_"+String.valueOf(idx));			
+			ei.ignoreLMem("cpu2lmem_"+String.valueOf(idx));	
 		}
 
 		ei.route("gatesfromcpuFanout10 -> gatesfromcpuChain10, " +
@@ -483,13 +460,8 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
                 // starting address of LMEM
 		InterfaceParam zero = ei.addConstant(0l);
 
-			ei.setStream("fromcpu", CPUTypes.VOID, sizeInBytes );
-/*			
-		for( int idx=0; idx<4; idx++) {
-			ei.setStream("fromcpu_"+String.valueOf(idx), CPUTypes.VOID, sizeInBytes );
-		}
+		ei.setStream("fromcpu", CPUTypes.VOID, sizeInBytes );
 
-*/
 		// set parameters for the address generator kernel
 		InterfaceParam burstSize = ei.addConstant(64);  //for single DIMM
 
@@ -499,16 +471,13 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 		InterfaceParam ticksMax = burstNum*chunks;
 		
 		for( int idx=0; idx<4; idx++) {
-//			ei.setScalar("CPU2LMEMCommGenKernel_"+String.valueOf(idx), "IterationNum", ei.addConstant(1l));
 			ei.setScalar("CPU2LMEMCommGenKernel_"+String.valueOf(idx), "dynAddrOffsetMax", ei.addConstant(0l));
 			ei.setScalar("CPU2LMEMCommGenKernel_"+String.valueOf(idx), "chunkNum", chunks);
 			ei.setScalar("CPU2LMEMCommGenKernel_"+String.valueOf(idx), "burstNum", burstNum);
-			//ei.setScalar("CPU2LMEMCommGenKernel_"+String.valueOf(idx), "addrOffset", zero);
 		
 
 
 			ei.setTicks("CPU2LMEMCommGenKernel_"+String.valueOf(idx), ticksMax);//ei.addConstant(1));
-//			ei.setTicks("LMEM2CPUCommGenKernel_"+String.valueOf(idx), zero);
 			ei.setTicks("FromLMEMCommGenKernel_"+String.valueOf(idx), zero);
 			ei.setTicks("ToLMEMCommGenKernel_"+String.valueOf(idx), zero);
 			for (int gate_idx=0; gate_idx<chainedGatesNum; gate_idx++) {
@@ -535,7 +504,6 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 
                 // With custom memory address commenad generators it is needed to ignore other LMEM streams!!!!!!!!!!!!!!!!!!!!!
 		for( int idx=0; idx<4; idx++) {                
-//			ei.ignoreLMem("lmem2cpu_"+String.valueOf(idx));
 			ei.ignoreLMem("inA_"+String.valueOf(idx));
 			ei.ignoreLMem("outA_"+String.valueOf(idx));
 		}
@@ -544,76 +512,7 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 		return ei;
 	}
 
-
-/**
-@brief ???????????
-@param  
-*/
-/*
-	static EngineInterface interfaceRead(String name) {
-		EngineInterface ei = new EngineInterface(name);
-
-		// The number of comnponents in the wave-vector 
-		InterfaceParam size  = ei.addParam("element_num", CPUTypes.INT32);
-
-		// the overall size of the matrix
-		InterfaceParam sizeInBytes = size * CPUTypes.FLOAT.sizeInBytes();
-
-                // starting address of LMEM
-		//InterfaceParam zero = ei.addConstant(0l);
-
-		for( int idx=0; idx<4; idx++) {
-			ei.setStream("tocpu_"+String.valueOf(idx), CPUTypes.VOID, sizeInBytes);
-		}
-
-                // set parameters for the address generator kernel
-                InterfaceParam burstSize = ei.addConstant(64);  //for single DIMM
-		InterfaceParam burstNum = sizeInBytes/burstSize;
-		InterfaceParam chunks = burstSize/(CPUTypes.FLOAT.sizeInBytes()*2);
-		InterfaceParam ticksMax = burstNum*chunks;
-		
-		InterfaceParam zero = ei.addConstant(0l);	
 	
-		
-		for( int idx=0; idx<4; idx++) {
-			ei.setScalar("LMEM2CPUCommGenKernel_"+String.valueOf(idx), "IterationNum", ei.addConstant(1l));
-			ei.setScalar("LMEM2CPUCommGenKernel_"+String.valueOf(idx), "burstNum", burstNum);
-			ei.setScalar("LMEM2CPUCommGenKernel_"+String.valueOf(idx), "addrOffset", burstNum);
-//			ei.setScalar("LMEM2CPUCommGenKernel_"+String.valueOf(idx), "addrOffset", zero);	
-			ei.setScalar("LMEM2CPUCommGenKernel_"+String.valueOf(idx), "chunkNum", chunks);
-		
-
-
-			ei.setTicks("LMEM2CPUCommGenKernel_"+String.valueOf(idx), ticksMax);
-			ei.setTicks("CPU2LMEMCommGenKernel_"+String.valueOf(idx), zero);
-			ei.setTicks("FromLMEMCommGenKernel_"+String.valueOf(idx), zero);
-			ei.setTicks("ToLMEMCommGenKernel_"+String.valueOf(idx), zero);
-			for (int gate_idx=0; gate_idx<chainedGatesNum; gate_idx++) {
-				ei.setTicks("qgdDFEKernel_"+String.valueOf(idx)+"_"+String.valueOf(gate_idx), zero);
-			}
-			ei.setTicks("GateKernelGeneratorKernel_"+String.valueOf(idx), zero);
-		}
-		
-		
-
-
-
-		ei.setLMemInterruptOn("lmem2cpu_0");
-
-		ei.ignoreAll(Direction.IN_OUT);
-
-               // With custom memory address commenad generators it is needed to ignore other LMEM streams!!!!!!!!!!!!!!!!!!!!!
-                
-		for( int idx=0; idx<4; idx++) {                
-			ei.ignoreLMem("cpu2lmem_"+String.valueOf(idx));
-			ei.ignoreLMem("inA_"+String.valueOf(idx));
-			ei.ignoreLMem("outA_"+String.valueOf(idx));
-		}
-		
-
-		return ei;
-	}
-*/	
 		
 /**
 @brief ???????????
@@ -627,9 +526,6 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 
 		conf.setOptimizationGoal(BuildConfig.OptimizationGoal.SPEED);
         	conf.setBuildEffort(BuildConfig.Effort.HIGH);
-	        //conf.setImplementationNearMissRetries(1);
-        	//conf.setImplementationNearMissThreshold(10000); //0-1000000 are considered within threshold for build success on MAX5
-//conf.setBramMappingScaleFactor(0.5);
 
 		conf.setSynthesisStrategy(Utility.getHighPerfSynthStrategy()); //SynthesisStrategy.FLOW_PERF_OPTIMIZED_HIGH);
 
@@ -643,14 +539,14 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 //		conf.setSynthesisStrategy( SynthesisStrategy.FLOW_PERF_OPTIMIZED_HIGH );
 //		conf.setParallelism( 64 );
 
-		manager.setDefaultStreamClockFrequency(350);
+		//manager.setDefaultStreamClockFrequency(350);
 		
 
 
 
 		manager.createSlicInterface(qgdDFEManager.interfaceDefault());
 		manager.createSlicInterface(qgdDFEManager.interfaceWrite("writeLMem"));
-//		manager.createSlicInterface(qgdDFEManager.interfaceRead("readLMem"));
+
 //		manager.getBuildManager().setParameter(MaxCompilerBuildConf.build.clean_build_directory, false); //problematic for successful builds, but failed builds which have a timing score will get deleted...can manually delete dcp checkpoint files instead
 		
 		manager.addMaxFileConstant("CHAINED_GATES_NUM", qgdDFEManager.totalGatesInChain);	
