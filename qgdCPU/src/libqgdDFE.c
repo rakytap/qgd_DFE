@@ -474,20 +474,46 @@ int calcqgdKernelDFE_oneShot(size_t rows, size_t cols, gate_kernel_type* gates, 
 
 
     double* trace0 = trace;
-    for (size_t jdx=0; jdx<gateSetNum_splitted0; jdx++ ) {      
-        trace0[jdx+0*gateSetNum_splitted0] = ((double)trace_fix0[8*jdx+4]/(1<<30));
-        trace0[jdx+1*gateSetNum_splitted0] = ((double)trace_fix0[8*jdx+5]/(1<<30));
-        trace0[jdx+2*gateSetNum_splitted0] = ((double)trace_fix0[8*jdx+6]/(1<<30));
-        trace0[jdx+3*gateSetNum_splitted0] = ((double)trace_fix0[8*jdx+7]/(1<<30));
+    for (size_t jdx=0; jdx<gateSetNum_splitted0; jdx++ ) { 
+
+        int index_offset = 3*jdx;
+        trace[index_offset]   = ((double)trace_fix0[8*jdx+4]/(1<<30));
+        trace[index_offset+1] = ((double)trace_fix0[8*jdx+0]/(1<<30));
+
+        index_offset = index_offset + 3*gateSetNum_splitted0;
+        trace[index_offset]   = ((double)trace_fix0[8*jdx+5]/(1<<30));
+        trace[index_offset+1] = ((double)trace_fix0[8*jdx+1]/(1<<30));
+
+        index_offset = index_offset + 3*gateSetNum_splitted0;
+        trace[index_offset]   = ((double)trace_fix0[8*jdx+6]/(1<<30));
+        trace[index_offset+1] = ((double)trace_fix0[8*jdx+2]/(1<<30));
+
+        index_offset = index_offset + 3*gateSetNum_splitted0;
+        trace[index_offset]   = ((double)trace_fix0[8*jdx+7]/(1<<30));
+        trace[index_offset+1] = ((double)trace_fix0[8*jdx+3]/(1<<30));
+
     }
 
 
-    double* trace1 = trace + gateSetNum0;
-    for (size_t jdx=0; jdx<gateSetNum_splitted1; jdx++ ) {      
-        trace1[jdx+0*gateSetNum_splitted1] = ((double)trace_fix1[8*jdx+4]/(1<<30));
-        trace1[jdx+1*gateSetNum_splitted1] = ((double)trace_fix1[8*jdx+5]/(1<<30));
-        trace1[jdx+2*gateSetNum_splitted1] = ((double)trace_fix1[8*jdx+6]/(1<<30));
-        trace1[jdx+3*gateSetNum_splitted1] = ((double)trace_fix1[8*jdx+7]/(1<<30));
+    double* trace1 = trace + 3*gateSetNum0;
+    for (size_t jdx=0; jdx<gateSetNum_splitted1; jdx++ ) { 
+
+        int index_offset = 3*jdx;
+        trace1[index_offset]   = ((double)trace_fix1[8*jdx+4]/(1<<30));
+        trace1[index_offset+1] = ((double)trace_fix1[8*jdx+0]/(1<<30));
+
+        index_offset = index_offset + 3*gateSetNum_splitted1;
+        trace1[index_offset]   = ((double)trace_fix1[8*jdx+5]/(1<<30));
+        trace1[index_offset+1] = ((double)trace_fix1[8*jdx+1]/(1<<30));
+
+        index_offset = index_offset + 3*gateSetNum_splitted1;
+        trace1[index_offset]   = ((double)trace_fix1[8*jdx+6]/(1<<30));
+        trace1[index_offset+1] = ((double)trace_fix1[8*jdx+2]/(1<<30));
+
+        index_offset = index_offset + 3*gateSetNum_splitted1;
+        trace1[index_offset]   = ((double)trace_fix1[8*jdx+7]/(1<<30));
+        trace1[index_offset+1] = ((double)trace_fix1[8*jdx+3]/(1<<30));
+
     }
 
 
@@ -719,28 +745,67 @@ int calcqgdKernelDFE_oneShot(size_t rows, size_t cols, gate_kernel_type* gates, 
 
     double* trace0 = trace;
     for (size_t jdx=0; jdx<gateSetNum_splitted0; jdx++ ) {      
-        trace0[jdx+0*gateSetNum_splitted0] = ((double)trace_fix0[8*jdx+4]/(1<<30));
-        trace0[jdx+1*gateSetNum_splitted0] = ((double)trace_fix0[8*jdx+5]/(1<<30));
-        trace0[jdx+2*gateSetNum_splitted0] = ((double)trace_fix0[8*jdx+6]/(1<<30));
-        trace0[jdx+3*gateSetNum_splitted0] = ((double)trace_fix0[8*jdx+7]/(1<<30));
+
+        int index_offset = 3*jdx;
+        trace[index_offset]   = ((double)trace_fix0[8*jdx+4]/(1<<30));
+        trace[index_offset+1] = ((double)trace_fix0[8*jdx+0]/(1<<30));
+
+        index_offset = index_offset + 3*gateSetNum_splitted0;
+        trace[index_offset]   = ((double)trace_fix0[8*jdx+5]/(1<<30));
+        trace[index_offset+1] = ((double)trace_fix0[8*jdx+1]/(1<<30));
+
+        index_offset = index_offset + 3*gateSetNum_splitted0;
+        trace[index_offset]   = ((double)trace_fix0[8*jdx+6]/(1<<30));
+        trace[index_offset+1] = ((double)trace_fix0[8*jdx+2]/(1<<30));
+
+        index_offset = index_offset + 3*gateSetNum_splitted0;
+        trace[index_offset]   = ((double)trace_fix0[8*jdx+7]/(1<<30));
+        trace[index_offset+1] = ((double)trace_fix0[8*jdx+3]/(1<<30));
+
     }
 
 
-    double* trace1 = trace + gateSetNum0;
-    for (size_t jdx=0; jdx<gateSetNum_splitted1; jdx++ ) {      
-        trace1[jdx+0*gateSetNum_splitted1] = ((double)trace_fix1[8*jdx+4]/(1<<30));
-        trace1[jdx+1*gateSetNum_splitted1] = ((double)trace_fix1[8*jdx+5]/(1<<30));
-        trace1[jdx+2*gateSetNum_splitted1] = ((double)trace_fix1[8*jdx+6]/(1<<30));
-        trace1[jdx+3*gateSetNum_splitted1] = ((double)trace_fix1[8*jdx+7]/(1<<30));
+    double* trace1 = trace + 3*gateSetNum0;
+    for (size_t jdx=0; jdx<gateSetNum_splitted1; jdx++ ) {  
+
+        int index_offset = 3*jdx;
+        trace1[index_offset]   = ((double)trace_fix1[8*jdx+4]/(1<<30));
+        trace1[index_offset+1] = ((double)trace_fix1[8*jdx+0]/(1<<30));
+
+        index_offset = index_offset + 3*gateSetNum_splitted1;
+        trace1[index_offset]   = ((double)trace_fix1[8*jdx+5]/(1<<30));
+        trace1[index_offset+1] = ((double)trace_fix1[8*jdx+1]/(1<<30));
+
+        index_offset = index_offset + 3*gateSetNum_splitted1;
+        trace1[index_offset]   = ((double)trace_fix1[8*jdx+6]/(1<<30));
+        trace1[index_offset+1] = ((double)trace_fix1[8*jdx+2]/(1<<30));
+
+        index_offset = index_offset + 3*gateSetNum_splitted1;
+        trace1[index_offset]   = ((double)trace_fix1[8*jdx+7]/(1<<30));
+        trace1[index_offset+1] = ((double)trace_fix1[8*jdx+3]/(1<<30));
+
     }
 
 
-    double* trace2 = trace + gateSetNum0 + gateSetNum1;
+    double* trace2 = trace + 3*gateSetNum0 + 3*gateSetNum1;
     for (size_t jdx=0; jdx<gateSetNum_splitted2; jdx++ ) {      
-        trace2[jdx+0*gateSetNum_splitted2] = ((double)trace_fix2[8*jdx+4]/(1<<30));
-        trace2[jdx+1*gateSetNum_splitted2] = ((double)trace_fix2[8*jdx+5]/(1<<30));
-        trace2[jdx+2*gateSetNum_splitted2] = ((double)trace_fix2[8*jdx+6]/(1<<30));
-        trace2[jdx+3*gateSetNum_splitted2] = ((double)trace_fix2[8*jdx+7]/(1<<30));
+
+        int index_offset = 3*jdx;
+        trace2[index_offset]   = ((double)trace_fix2[8*jdx+4]/(1<<30));
+        trace2[index_offset+1] = ((double)trace_fix2[8*jdx+0]/(1<<30));
+
+        index_offset = index_offset + 3*gateSetNum_splitted2;
+        trace2[index_offset]   = ((double)trace_fix2[8*jdx+5]/(1<<30));
+        trace2[index_offset+1] = ((double)trace_fix2[8*jdx+1]/(1<<30));
+
+        index_offset = index_offset + 3*gateSetNum_splitted2;
+        trace2[index_offset]   = ((double)trace_fix2[8*jdx+6]/(1<<30));
+        trace2[index_offset+1] = ((double)trace_fix2[8*jdx+2]/(1<<30));
+
+        index_offset = index_offset + 3*gateSetNum_splitted2;
+        trace2[index_offset]   = ((double)trace_fix2[8*jdx+7]/(1<<30));
+        trace2[index_offset+1] = ((double)trace_fix2[8*jdx+3]/(1<<30));
+
     }
 
 
@@ -829,10 +894,22 @@ int calcqgdKernelDFE_oneShot(size_t rows, size_t cols, gate_kernel_type* gates, 
 
 
     for (size_t jdx=0; jdx<gateSetNum_splitted; jdx++ ) {      
-        trace[jdx+0*gateSetNum_splitted] = ((double)trace_fix[8*jdx+4]/(1<<30));
-        trace[jdx+1*gateSetNum_splitted] = ((double)trace_fix[8*jdx+5]/(1<<30));
-        trace[jdx+2*gateSetNum_splitted] = ((double)trace_fix[8*jdx+6]/(1<<30));
-        trace[jdx+3*gateSetNum_splitted] = ((double)trace_fix[8*jdx+7]/(1<<30));
+
+        int index_offset = 3*jdx;
+        trace[index_offset]   = ((double)trace_fix[8*jdx+4]/(1<<30));
+        trace[index_offset+1] = ((double)trace_fix[8*jdx+0]/(1<<30));
+
+        index_offset = index_offset + 3*gateSetNum_splitted;
+        trace[index_offset]   = ((double)trace_fix[8*jdx+5]/(1<<30));
+        trace[index_offset+1] = ((double)trace_fix[8*jdx+1]/(1<<30));
+
+        index_offset = index_offset + 3*gateSetNum_splitted;
+        trace[index_offset]   = ((double)trace_fix[8*jdx+6]/(1<<30));
+        trace[index_offset+1] = ((double)trace_fix[8*jdx+2]/(1<<30));
+
+        index_offset = index_offset + 3*gateSetNum_splitted;
+        trace[index_offset]   = ((double)trace_fix[8*jdx+7]/(1<<30));
+        trace[index_offset+1] = ((double)trace_fix[8*jdx+3]/(1<<30));
     }
 
 
@@ -870,7 +947,7 @@ int calcqgdKernelDFE(size_t rows, size_t cols, gate_kernel_type* gates, int gate
            gateSetToProcess = gateSetNum - processedGateSet;     
        }
 
-       calcqgdKernelDFE_oneShot(rows, cols, gates+processedGateSet*gatesNum, gatesNum, gateSetToProcess, trace+processedGateSet );
+       calcqgdKernelDFE_oneShot(rows, cols, gates+processedGateSet*gatesNum, gatesNum, gateSetToProcess, trace+3*processedGateSet );
        
        
        processedGateSet = processedGateSet + gateSetToProcess;

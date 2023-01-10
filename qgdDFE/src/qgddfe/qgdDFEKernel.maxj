@@ -262,10 +262,9 @@ public static DFEVar ternaryAdder(DFEVar[] vars, boolean[] issub, int[] pipeline
 
 
 /**
-@brief ????????????
-@return ??????????
+@brief class to store elementary data of a gate operation
 */
-	// class to store elementary data of a gate operation
+
 	class GateKernelStructType extends DFEStructType {
 		GateKernelStructType() {
 			super(sft ( "KernelMatrix", kernelMatrixType ),
@@ -279,8 +278,10 @@ public static DFEVar ternaryAdder(DFEVar[] vars, boolean[] issub, int[] pipeline
 
 
 /**
-@brief ????????????
-@return ??????????
+@brief Variable bitshift to left of a constant number value.
+@param value The conatnt value to be shifted
+@param bits The number of representing bits
+@return Returns with the left shifted bits by a value encoded in shift (This is the DFE variable).
 */
 	DFEVar shiftLeft(long value, DFEVar shift, int bits ) {
 
@@ -318,82 +319,70 @@ public static DFEVar ternaryAdder(DFEVar[] vars, boolean[] issub, int[] pipeline
 		
 		DFEStruct gate_input = io.input("gates", DFEstructType, inputController);
 		
-gate_input = optimization.limitFanout(gate_input, 10);		
+		gate_input = optimization.limitFanout(gate_input, 10);		
 		
-List<DFEStruct> gate_list = new ArrayList<DFEStruct>();
-for (int gate_idx=0; gate_idx<gates_num; gate_idx++) {
-	gate_list.add( Reductions.streamHold(stream.offset(gate_input, gate_idx), inputControllerCounter === 0) );
-}	
+		List<DFEStruct> gate_list = new ArrayList<DFEStruct>();
+		for (int gate_idx=0; gate_idx<gates_num; gate_idx++) {
+			gate_list.add( Reductions.streamHold(stream.offset(gate_input, gate_idx), inputControllerCounter === 0) );
+		}	
 
 		
 
-for (int gate_idx=0; gate_idx<gates_num; gate_idx++) {
-
-	DFEStruct gate = gate_list[gate_idx];
-//debug.simPrintf("gate_idx: %d, elements a: %f\n", gate_idx, x.getReal());
-
-		DFEVar controlQubit = gate["ControlQubit"];
-		DFEVar targetQubit  = gate["TargetQubit"];
-
-		DFEVar useControlQubit = controlQubit >= 0;
-
-		DFEVar indexStepControl = useControlQubit ? shiftLeft( 1, controlQubit.cast(dfeUInt(4)), 11 ) : constant.var( dfeUInt(11), 0); // will need for controlled gates
-		DFEVar indexStepTarget = shiftLeft( 1, targetQubit, 11 );
-//debug.simPrintf("gate_idx: %d, %d, target :%d, %d\n", gate_idx, inputControllerCounter, targetQubit, indexStepTarget);
-//debug.simPrintf("control : %d, %d\n", controlQubit, indexStepControl);
+		for (int gate_idx=0; gate_idx<gates_num; gate_idx++) {
+	
+			DFEStruct gate = gate_list[gate_idx];
 
 
-		SMIO IndexGenSM = addStateMachine("IndexGenSM_"+String.valueOf(gate_idx), new IndexGenStateMachine( this));
-		IndexGenSM.connectInput("indexStepTarget", indexStepTarget);
-		IndexGenSM.connectInput("dim", rows-1);
+			DFEVar controlQubit = gate["ControlQubit"];
+			DFEVar targetQubit  = gate["TargetQubit"];
 
-		DFEVar indexCounter        = IndexGenSM.getOutput("indexCounter"); // will need for controlled gates
-		DFEVar targetState         = IndexGenSM.getOutput("targetState");
+			DFEVar useControlQubit = controlQubit >= 0;
 
-		DFEVar indexCounterPair    = targetState ? -indexStepTarget.cast(dfeInt(11)) : indexStepTarget.cast(dfeInt(11));//IndexGenSM.getOutput("indexCounterPair");
-for ( int idx=0; idx<8; idx++ ) {
-	targetState = optimization.pipeline( targetState );
-}
+			DFEVar indexStepControl = useControlQubit ? shiftLeft( 1, controlQubit.cast(dfeUInt(4)), 11 ) : constant.var( dfeUInt(11), 0); // will need for controlled gates
+			DFEVar indexStepTarget = shiftLeft( 1, targetQubit, 11 );
 
-//debug.simPrintf("indexCounters: %d, %d, target state: %d, indexStepTarget: %d\n", indexCounter, indexCounterPair, targetState, indexStepTarget);
-//debug.simPrintf("indexCounters: %d\n", indexCounterPair);
+			SMIO IndexGenSM = addStateMachine("IndexGenSM_"+String.valueOf(gate_idx), new IndexGenStateMachine( this));
+			IndexGenSM.connectInput("indexStepTarget", indexStepTarget);
+			IndexGenSM.connectInput("dim", rows-1);
 
-		DFEComplex x_offset = stream.offset(x, indexCounterPair, -dimMax/2, dimMax/2);
+			DFEVar indexCounter        = IndexGenSM.getOutput("indexCounter"); // will need for controlled gates
+			DFEVar targetState         = IndexGenSM.getOutput("targetState");
 
+			DFEVar indexCounterPair    = targetState ? -indexStepTarget.cast(dfeInt(11)) : indexStepTarget.cast(dfeInt(11));//IndexGenSM.getOutput("indexCounterPair");
 
-		DFEVector<DFEComplex> kernelMatrix = gate["KernelMatrix"];
-//debug.simPrintf("kernelMatrix: %f, %f\n", kernelMatrix[3].getReal(), kernelMatrix[3].getReal());		
-
- 		//DFEVar sqrt2_over_2 = constant.var( dataTypeFix32, 0.707106781); // sqrt(2)/2
-
-                // if targetState === 1 than .... otherwise .... 
+			for ( int idx=0; idx<8; idx++ ) {
+				targetState = optimization.pipeline( targetState );
+			}
 
 
-//debug.simPrintf("gate_idx: %d, elements b: %f\n", gate_idx, x.getReal());
+			DFEComplex x_offset = stream.offset(x, indexCounterPair, -dimMax/2, dimMax/2);
 
-		// multiplex inputs to save 50 of DSPs
-		//DFEComplex transformedAmplitude = (targetState) ?  x_offset*kernelMatrix[2] + x*kernelMatrix[3] : x*kernelMatrix[0] + x_offset*kernelMatrix[1];
-		DFEComplex amp_x = (targetState) ? kernelMatrix[3] : kernelMatrix[0];
-		DFEComplex amp_x_offset = (targetState) ? kernelMatrix[2] : kernelMatrix[1];
-		DFEComplex transformedAmplitude = doMult(x_offset, amp_x_offset, 32, this) + doMult(x, amp_x, 32, this);
+
+			DFEVector<DFEComplex> kernelMatrix = gate["KernelMatrix"];
+
+			// multiplex inputs to save 50% of DSPs
+			//DFEComplex transformedAmplitude = (targetState) ?  x_offset*kernelMatrix[2] + x*kernelMatrix[3] : x*kernelMatrix[0] + x_offset*kernelMatrix[1];
+			DFEComplex amp_x = (targetState) ? kernelMatrix[3] : kernelMatrix[0];
+			DFEComplex amp_x_offset = (targetState) ? kernelMatrix[2] : kernelMatrix[1];
+			DFEComplex transformedAmplitude = doMult(x_offset, amp_x_offset, 32, this) + doMult(x, amp_x, 32, this);
 
 
 
-		DFEVar ControlQubitState = useControlQubit ? ((indexStepControl & indexCounter) > 0) : constant.var( dfeUInt(1), 1);
+			DFEVar ControlQubitState = useControlQubit ? ((indexStepControl & indexCounter) > 0) : constant.var( dfeUInt(1), 1);
 
-		DFEVar deriv = gate["deriv"];
-		DFEComplex zero = cplxTypeFix32.newInstance( this );
-		zero.setReal( constant.var( dataTypeFix32, 0.0) );
-		zero.setImaginary( constant.var( dataTypeFix32, 0.0) );
+			DFEVar deriv = gate["deriv"];
+			DFEComplex zero = cplxTypeFix32.newInstance( this );
+			zero.setReal( constant.var( dataTypeFix32, 0.0) );
+			zero.setImaginary( constant.var( dataTypeFix32, 0.0) );
 
-		x = deriv ? zero : x;
-		x = ControlQubitState ?  transformedAmplitude : x;
-//debug.simPrintf("%d ControlQubit: %d, %d\n", indexCounter, useControlQubit, ControlQubitState);
+			//x = optimization.pipeline( x );
+
+			x = deriv ? zero : x;
+			x = ControlQubitState ?  transformedAmplitude : x;
 
 
-//debug.simPrintf("gate_idx: %d, elements c: %f, %f, %f, %d, target :%d\n", gate_idx, x.getReal(), transformedAmplitude.getReal(), kernelMatrix[2].getReal(), controlQubit, targetQubit);
 
-}
+		}
 
 		// Output
 		io.output("y", x, cplxTypeFix32);
@@ -421,15 +410,55 @@ for ( int idx=0; idx<8; idx++ ) {
 			optimization.pushNoPipelining();
 
 			trace <== prevTrace + addToTrace;
-/*
+
+			// trace with single qubit error
+			DFEVar trace_1qbit_error      = dataTypeFix64.newInstance(this);
+
+			DFEVar xor = colIdx ^ rowIdx;
+			
+			DFEVar trace_1qubit_control = ( xor.get(0) & ~xor.get(1) & ~xor.get(2) & ~xor.get(3) & ~xor.get(4) & ~xor.get(5) & ~xor.get(6) & ~xor.get(7) & ~xor.get(8) & ~xor.get(9) ) | 
+						      ( ~xor.get(0) & xor.get(1) & ~xor.get(2) & ~xor.get(3) & ~xor.get(4) & ~xor.get(5) & ~xor.get(6) & ~xor.get(7) & ~xor.get(8) & ~xor.get(9) ) |
+						      ( ~xor.get(0) & ~xor.get(1) & xor.get(2) & ~xor.get(3) & ~xor.get(4) & ~xor.get(5) & ~xor.get(6) & ~xor.get(7) & ~xor.get(8) & ~xor.get(9) ) |
+						      ( ~xor.get(0) & ~xor.get(1) & ~xor.get(2) & xor.get(3) & ~xor.get(4) & ~xor.get(5) & ~xor.get(6) & ~xor.get(7) & ~xor.get(8) & ~xor.get(9) ) |
+						      ( ~xor.get(0) & ~xor.get(1) & ~xor.get(2) & ~xor.get(3) & xor.get(4) & ~xor.get(5) & ~xor.get(6) & ~xor.get(7) & ~xor.get(8) & ~xor.get(9) ) |
+						      ( ~xor.get(0) & ~xor.get(1) & ~xor.get(2) & ~xor.get(3) & ~xor.get(4) & xor.get(5) & ~xor.get(6) & ~xor.get(7) & ~xor.get(8) & ~xor.get(9) ) |
+						      ( ~xor.get(0) & ~xor.get(1) & ~xor.get(2) & ~xor.get(3) & ~xor.get(4) & ~xor.get(5) & xor.get(6) & ~xor.get(7) & ~xor.get(8) & ~xor.get(9) ) |
+						      ( ~xor.get(0) & ~xor.get(1) & ~xor.get(2) & ~xor.get(3) & ~xor.get(4) & ~xor.get(5) & ~xor.get(6) & xor.get(7) & ~xor.get(8) & ~xor.get(9) ) |
+						      ( ~xor.get(0) & ~xor.get(1) & ~xor.get(2) & ~xor.get(3) & ~xor.get(4) & ~xor.get(5) & ~xor.get(6) & ~xor.get(7) & xor.get(8) & ~xor.get(9) ) |
+						      ( ~xor.get(0) & ~xor.get(1) & ~xor.get(2) & ~xor.get(3) & ~xor.get(4) & ~xor.get(5) & xor.get(6) & ~xor.get(7) & ~xor.get(8) & xor.get(9) );
+		
+			//DFEVar trace_1qubit_control = (xor === 1) | (xor === 2) | (xor === 4) | (xor === 8) | (xor === 16) | (xor === 32) | (xor === 64) | (xor === 128) | (xor === 256) | (xor === 512) | (xor === 1025);
+			
+			trace_1qubit_control = optimization.pipeline( trace_1qubit_control );
+
+			DFEVar addToTrace_1qbit = trace_1qubit_control ? x.getReal().cast(dataTypeFix64) : constant.var( dataTypeFix64, 0.0);
+			optimization.pushNoPipelining();
+			DFEVar prevTrace_1qbit = (colIdx+rowIdx)===0 ? constant.var( dataTypeFix64, 0.0) : stream.offset(trace_1qbit_error,-1);
+			optimization.pushNoPipelining();
+
+			trace_1qbit_error <== prevTrace_1qbit + addToTrace_1qbit;
+
+
+
+			DFEVar outputController = (rowIdx>=rows-2) & (colIdx===cols-1) & iterationIdx===IterationNum-1;
+
+                        // variabe to dinamically choose between outputs: 0 stands for the first order correction to the trace, 1 stands for the trace
+			DFEVar outputsChoice = outputController & (rowIdx === rows-1);
+
+			List<DFEVar> outputs = new ArrayList<DFEVar>();
+			outputs.add( trace_1qbit_error );
+			outputs.add( trace );
+			
+
+                        DFEVar output = control.mux(outputsChoice, outputs);
+
 if (verbose) {
-debug.simPrintf("trace: %f, %d\n", addToTrace, colIdx===rowIdx);
+//debug.simPrintf("trace: %f, %d, %d, %d\n", addToTrace_1qbit, trace_1qubit_control, rowIdx, colIdx);
 //debug.simPrintf("trace: %f, %d\n", x.getReal(), colIdx===rowIdx);
 //debug.simPrintf("trace: %f, %f, %d, %d, %d, %d, %d\n", x.getReal(), trace, rowIdx, colIdx, iterationIdx, IterationNum, (rowIdx>=rows-2) & (colIdx===cols-1) & iterationIdx===IterationNum-1);
 }
-*/
-			//output the last 2 elements to have 16bytes on the CPU stream
-			io.output("trace", trace, dataTypeFix64, (rowIdx>=rows-2) & (colIdx===cols-1) & iterationIdx===IterationNum-1);
+
+			io.output("trace", output, dataTypeFix64, outputController);
 
 		}
 

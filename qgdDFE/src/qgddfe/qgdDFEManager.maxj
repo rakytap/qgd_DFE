@@ -41,8 +41,8 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 	int dim = 512; //max 1024
 	int dim_over_2 = dim/2;
 	int burstCountOneShot = 100;
-	static int chainedGatesNum = 6;
-	static int gatesNumPerKernel = 18;
+	static int chainedGatesNum = 2;//6;
+	static int gatesNumPerKernel = 3;//18;
 	static int totalGatesInChain = chainedGatesNum*gatesNumPerKernel;
 
 /**
@@ -68,6 +68,10 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 */
 	public static DFELink slrCrossingChain(String name, String suffix, DFELink input, int slrStart, int slrEnd, int regPerX, ManagerRouting owner) //-1 for PCIE
 	{
+
+                //the floorplan shows SLR0 for PCIE but MaxCompiler IP always ties the ports to SLR1, meaning only SLR3 is a multi-hop...
+                if (slrStart == -1) slrStart = slrEnd == 1 ? 1 : (slrEnd == 0 ? 2 : 0);
+
 		if (owner != null) {
 			for (int i = slrStart + (slrEnd >= slrStart ? 1 : -1); slrEnd >= slrStart ? i < slrEnd : i > slrEnd; ) {
 				selectSLR(i, (XilinxAlveoU250Manager)owner);
@@ -88,6 +92,12 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 	
 	public static DFELink slrCrossingChainWithClock(String name, String suffix, DFELink input, int slrStart, int slrEnd, int regPerX, ManagerRouting owner, ManagerClock clock) //-1 for PCIE
 	{
+
+                //the floorplan shows SLR0 for PCIE but MaxCompiler IP always ties the ports to SLR1, meaning only SLR3 is a multi-hop...
+                if (slrStart == -1) slrStart = slrEnd == 1 ? 1 : (slrEnd == 0 ? 2 : 0);
+
+		System.out.print("slrCrossingChainWithClock:\n");
+
 		if (owner != null) {
 			for (int i = slrStart + (slrEnd >= slrStart ? 1 : -1); slrEnd >= slrStart ? i < slrEnd : i > slrEnd; ) {
 				selectSLR(i, (XilinxAlveoU250Manager)owner);
@@ -99,7 +109,11 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 				inp <== input;
 				input = fo.addOutput(name + "Chain" + suffix + i);
 				input.setAdditionalRegisters(regPerX);
+
+				System.out.print(name + "Fanout" + suffix + i + " -> " + name + "Chain" + suffix + i + "\n");
+
 				if (slrEnd >= slrStart) i++; else i--;
+
 			}
 		} else
 			input.setAdditionalRegisters(regPerX * ((slrEnd >= slrStart) ? slrEnd - slrStart : slrStart - slrEnd));
@@ -452,16 +466,7 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 //			ei.ignoreLMem("lmem2cpu_"+String.valueOf(idx));			
 		}
 
-		ei.route("gatesfromcpuFanout10 -> gatesfromcpuChain10, " +
-	            "gatesfromcpuFanout20->gatesfromcpuChain20, gatesfromcpuFanout21 -> gatesfromcpuChain21, " +
-	            "gatesfromcpuFanout30 -> gatesfromcpuChain30, gatesfromcpuFanout31 -> gatesfromcpuChain31, gatesfromcpuFanout32 -> gatesfromcpuChain32, " + 
-	            "inputfromcpuFanout10 -> inputfromcpuChain10, " +
-	            "inputfromcpuFanout20->inputfromcpuChain20, inputfromcpuFanout21 -> inputfromcpuChain21, " +
-	            "inputfromcpuFanout30 -> inputfromcpuChain30, inputfromcpuFanout31 -> inputfromcpuChain31, inputfromcpuFanout32 -> inputfromcpuChain32, " +
-                    "trace2cpuFanout10 -> trace2cpuChain10, " +
-	            "trace2cpuFanout20->trace2cpuChain20, trace2cpuFanout21 -> trace2cpuChain21, " +
-	            "trace2cpuFanout30 -> trace2cpuChain30, trace2cpuFanout31 -> trace2cpuChain31, trace2cpuFanout32 -> trace2cpuChain32, " +
-	            "inputSplitFanout -> fromFanout_0, inputSplitFanout -> fromFanout_1, inputSplitFanout -> fromFanout_2, inputSplitFanout -> fromFanout_3");		
+		ei.route("trace2cpuFanout30 -> trace2cpuChain30, trace2cpuFanout31 -> trace2cpuChain31, trace2cpuFanout32 -> trace2cpuChain32, gatesfromcpuFanout32 -> gatesfromcpuChain32, gatesfromcpuFanout31 -> gatesfromcpuChain31, inputfromcpuFanout32 -> inputfromcpuChain32, inputfromcpuFanout31 -> inputfromcpuChain31, trace2cpuFanout20 -> trace2cpuChain20, trace2cpuFanout21 -> trace2cpuChain21, gatesfromcpuFanout21 -> gatesfromcpuChain21, inputfromcpuFanout21 -> inputfromcpuChain21, trace2cpuFanout10 -> trace2cpuChain10, gatesfromcpuFanout01 -> gatesfromcpuChain01, inputfromcpuFanout01 -> inputfromcpuChain01, inputSplitFanout -> fromFanout_0, inputSplitFanout -> fromFanout_1, inputSplitFanout -> fromFanout_2, inputSplitFanout -> fromFanout_3");		
 
 		return ei ;
 	}	
@@ -520,16 +525,7 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 
 		ei.setLMemInterruptOn("cpu2lmem_0");
 		
-		ei.route("gatesfromcpuFanout10 -> gatesfromcpuChain10, " +
-	            "gatesfromcpuFanout20->gatesfromcpuChain20, gatesfromcpuFanout21 -> gatesfromcpuChain21, " +
-	            "gatesfromcpuFanout30 -> gatesfromcpuChain30, gatesfromcpuFanout31 -> gatesfromcpuChain31, gatesfromcpuFanout32 -> gatesfromcpuChain32, " + 
-	            "inputfromcpuFanout10 -> inputfromcpuChain10, " +
-	            "inputfromcpuFanout20->inputfromcpuChain20, inputfromcpuFanout21 -> inputfromcpuChain21, " +
-	            "inputfromcpuFanout30 -> inputfromcpuChain30, inputfromcpuFanout31 -> inputfromcpuChain31, inputfromcpuFanout32 -> inputfromcpuChain32, " +
-	            "trace2cpuFanout10 -> trace2cpuChain10, " +
-	            "trace2cpuFanout20->trace2cpuChain20, trace2cpuFanout21 -> trace2cpuChain21, " +
-	            "trace2cpuFanout30 -> trace2cpuChain30, trace2cpuFanout31 -> trace2cpuChain31, trace2cpuFanout32 -> trace2cpuChain32, " +
-	            "inputSplitFanout -> fromFanout_0, inputSplitFanout -> fromFanout_1, inputSplitFanout -> fromFanout_2, inputSplitFanout -> fromFanout_3");				
+		ei.route("trace2cpuFanout30 -> trace2cpuChain30, trace2cpuFanout31 -> trace2cpuChain31, trace2cpuFanout32 -> trace2cpuChain32, gatesfromcpuFanout32 -> gatesfromcpuChain32, gatesfromcpuFanout31 -> gatesfromcpuChain31, inputfromcpuFanout32 -> inputfromcpuChain32, inputfromcpuFanout31 -> inputfromcpuChain31, trace2cpuFanout20 -> trace2cpuChain20, trace2cpuFanout21 -> trace2cpuChain21, gatesfromcpuFanout21 -> gatesfromcpuChain21, inputfromcpuFanout21 -> inputfromcpuChain21, trace2cpuFanout10 -> trace2cpuChain10, gatesfromcpuFanout01 -> gatesfromcpuChain01, inputfromcpuFanout01 -> inputfromcpuChain01, inputSplitFanout -> fromFanout_0, inputSplitFanout -> fromFanout_1, inputSplitFanout -> fromFanout_2, inputSplitFanout -> fromFanout_3");				
 
 		ei.ignoreAll(Direction.IN_OUT);
 
@@ -630,18 +626,18 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 	        //conf.setImplementationNearMissRetries(1);
         	//conf.setImplementationNearMissThreshold(10000); //0-1000000 are considered within threshold for build success on MAX5
 //conf.setBramMappingScaleFactor(0.5);
-
+/*
 		conf.setSynthesisStrategy(Utility.getHighPerfSynthStrategy()); //SynthesisStrategy.FLOW_PERF_OPTIMIZED_HIGH);
 
 	        //Inspect output timing scores and rank from best to worst
 		boolean isProbe = false;
 	        conf.setImplementationStrategies(Utility.chooseImplementationStrategies(false, isProbe));
 	        conf.setParallelism(5);
-
-//		conf.setImplementationStrategies( ImplementationStrategy.MAXELER4, 
-//						ImplementationStrategy.MAXELER3);
-//		conf.setSynthesisStrategy( SynthesisStrategy.FLOW_PERF_OPTIMIZED_HIGH );
-//		conf.setParallelism( 64 );
+*/
+		conf.setImplementationStrategies( ImplementationStrategy.MAXELER4, 
+						ImplementationStrategy.MAXELER3);
+		conf.setSynthesisStrategy( SynthesisStrategy.FLOW_PERF_OPTIMIZED_HIGH );
+		conf.setParallelism( 64 );
 
 		manager.setDefaultStreamClockFrequency(350);
 		
@@ -651,7 +647,7 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 		manager.createSlicInterface(qgdDFEManager.interfaceDefault());
 		manager.createSlicInterface(qgdDFEManager.interfaceWrite("writeLMem"));
 //		manager.createSlicInterface(qgdDFEManager.interfaceRead("readLMem"));
-//		manager.getBuildManager().setParameter(MaxCompilerBuildConf.build.clean_build_directory, false); //problematic for successful builds, but failed builds which have a timing score will get deleted...can manually delete dcp checkpoint files instead
+		manager.getBuildManager().setParameter(MaxCompilerBuildConf.build.clean_build_directory, false); //problematic for successful builds, but failed builds which have a timing score will get deleted...can manually delete dcp checkpoint files instead
 		
 		manager.addMaxFileConstant("CHAINED_GATES_NUM", qgdDFEManager.totalGatesInChain);	
 		
