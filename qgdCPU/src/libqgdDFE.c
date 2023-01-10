@@ -19,11 +19,6 @@ typedef struct {
 	double imag;
 } Complex16;
 
-typedef struct {
-  float real;
-  float imag;
-} Complex8;
-
 
 /**
  * \brief ???????????
@@ -55,7 +50,7 @@ static max_engine_t *engine = NULL;
 
 
 /**
-@brief Interface function to releive DFE
+@brief Call to get the number of gates in one chain of gates operations
 */
 int get_chained_gates_num() {
 
@@ -96,7 +91,7 @@ void releive_DFE()
 
 
 /**
-@brief Interface function to releive DFE
+@brief Interface function to initialize DFE
 */
 int initialize_DFE()
 {
@@ -150,10 +145,10 @@ int initialize_DFE()
 
 
 /**
- * \brief ???????????
+ * \brief Call to upload the unitary up to the DFE
  * 
  */
-int load2LMEM( Complex8* data, size_t rows, size_t cols ) {
+int load2LMEM( Complex16* data, size_t rows, size_t cols ) {
 
     // test whether the DFE engine can be initialized
     if ( initialize_DFE() ) {
@@ -237,64 +232,6 @@ int load2LMEM( Complex8* data, size_t rows, size_t cols ) {
 }
 
 
-
-/**
- * \brief ???????????
- * 
- */
-/*
-int downloadFromLMEM( Complex8** data, size_t dim ) {
-
-    // test whether the DFE engine can be initialized
-    if ( initialize_DFE() ) {
-        printf("Failed to initialize the DFE engine\n");
-        return 1;
-    }
-
-    size_t element_num = dim*dim;
-
-    // cast fix point to floats
-    // convert data to fixpoint number representation into (0,31) and a sign bit
-    int32_t** data_fix[4];
-    for( size_t idx=0; idx<4; idx++) {
-        data_fix[idx] = (int32_t*)malloc( 2*element_num*sizeof(int32_t) );
-    }     
-
-
-    // download data from DFE LMEM
-    qgdDFE_readLMem_actions_t interface_actions;
-    interface_actions.param_element_num = 2*element_num;
-    interface_actions.outstream_tocpu_0 = (void*)data_fix[0];
-    interface_actions.outstream_tocpu_1 = (void*)data_fix[1];
-    interface_actions.outstream_tocpu_2 = (void*)data_fix[2];
-    interface_actions.outstream_tocpu_3 = (void*)data_fix[3];            
-
-    qgdDFE_readLMem_run( engine, &interface_actions);
-
-    for( size_t idx=0; idx<4; idx++) {
-        Complex8* data_loc = data[idx];
-        int32_t* data_fix_loc = data_fix[idx];        
-        for (size_t row_idx=0; row_idx<dim; row_idx++) {
-            for (size_t col_idx=0; col_idx<dim; col_idx++) {
-                data_loc[row_idx*dim+col_idx].real = ((float)data_fix_loc[2*(col_idx*dim+row_idx)]/(1<<30));
-                data_loc[row_idx*dim+col_idx].imag = ((float)data_fix_loc[2*(col_idx*dim+row_idx)+1]/(1<<30));
-            }
-        }
-    }
-
-    for( size_t idx=0; idx<4; idx++) {
-        free( data_fix[idx] );
-    }            
-
-//#ifdef DEBUG
-    printf("Data downloaded from DFE LMEM\n");
-//#endif
-
-
-    return 0;
-
-}
-*/
 
 
 
