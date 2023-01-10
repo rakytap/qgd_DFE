@@ -375,8 +375,6 @@ public static DFEVar ternaryAdder(DFEVar[] vars, boolean[] issub, int[] pipeline
 			zero.setReal( constant.var( dataTypeFix32, 0.0) );
 			zero.setImaginary( constant.var( dataTypeFix32, 0.0) );
 
-			//x = optimization.pipeline( x );
-
 			x = deriv ? zero : x;
 			x = ControlQubitState ?  transformedAmplitude : x;
 
@@ -415,7 +413,6 @@ public static DFEVar ternaryAdder(DFEVar[] vars, boolean[] issub, int[] pipeline
 			DFEVar trace_1qbit_error      = dataTypeFix64.newInstance(this);
 
 			DFEVar xor = colIdx ^ rowIdx;
-			
 			DFEVar trace_1qubit_control = ( xor.get(0) & ~xor.get(1) & ~xor.get(2) & ~xor.get(3) & ~xor.get(4) & ~xor.get(5) & ~xor.get(6) & ~xor.get(7) & ~xor.get(8) & ~xor.get(9) ) | 
 						      ( ~xor.get(0) & xor.get(1) & ~xor.get(2) & ~xor.get(3) & ~xor.get(4) & ~xor.get(5) & ~xor.get(6) & ~xor.get(7) & ~xor.get(8) & ~xor.get(9) ) |
 						      ( ~xor.get(0) & ~xor.get(1) & xor.get(2) & ~xor.get(3) & ~xor.get(4) & ~xor.get(5) & ~xor.get(6) & ~xor.get(7) & ~xor.get(8) & ~xor.get(9) ) |
@@ -426,10 +423,6 @@ public static DFEVar ternaryAdder(DFEVar[] vars, boolean[] issub, int[] pipeline
 						      ( ~xor.get(0) & ~xor.get(1) & ~xor.get(2) & ~xor.get(3) & ~xor.get(4) & ~xor.get(5) & ~xor.get(6) & xor.get(7) & ~xor.get(8) & ~xor.get(9) ) |
 						      ( ~xor.get(0) & ~xor.get(1) & ~xor.get(2) & ~xor.get(3) & ~xor.get(4) & ~xor.get(5) & ~xor.get(6) & ~xor.get(7) & xor.get(8) & ~xor.get(9) ) |
 						      ( ~xor.get(0) & ~xor.get(1) & ~xor.get(2) & ~xor.get(3) & ~xor.get(4) & ~xor.get(5) & xor.get(6) & ~xor.get(7) & ~xor.get(8) & xor.get(9) );
-		
-			//DFEVar trace_1qubit_control = (xor === 1) | (xor === 2) | (xor === 4) | (xor === 8) | (xor === 16) | (xor === 32) | (xor === 64) | (xor === 128) | (xor === 256) | (xor === 512) | (xor === 1025);
-			
-			trace_1qubit_control = optimization.pipeline( trace_1qubit_control );
 
 			DFEVar addToTrace_1qbit = trace_1qubit_control ? x.getReal().cast(dataTypeFix64) : constant.var( dataTypeFix64, 0.0);
 			optimization.pushNoPipelining();
@@ -453,7 +446,7 @@ public static DFEVar ternaryAdder(DFEVar[] vars, boolean[] issub, int[] pipeline
                         DFEVar output = control.mux(outputsChoice, outputs);
 
 if (verbose) {
-//debug.simPrintf("trace: %f, %d, %d, %d\n", addToTrace_1qbit, trace_1qubit_control, rowIdx, colIdx);
+debug.simPrintf("trace: %f, %d, %d, %d\n", addToTrace_1qbit, trace_1qubit_control, rowIdx, colIdx);
 //debug.simPrintf("trace: %f, %d\n", x.getReal(), colIdx===rowIdx);
 //debug.simPrintf("trace: %f, %f, %d, %d, %d, %d, %d\n", x.getReal(), trace, rowIdx, colIdx, iterationIdx, IterationNum, (rowIdx>=rows-2) & (colIdx===cols-1) & iterationIdx===IterationNum-1);
 }

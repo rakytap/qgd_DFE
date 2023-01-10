@@ -41,8 +41,8 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 	int dim = 512; //max 1024
 	int dim_over_2 = dim/2;
 	int burstCountOneShot = 100;
-	static int chainedGatesNum = 2;//6;
-	static int gatesNumPerKernel = 3;//18;
+	static int chainedGatesNum = 6;
+	static int gatesNumPerKernel = 18;
 	static int totalGatesInChain = chainedGatesNum*gatesNumPerKernel;
 
 /**
