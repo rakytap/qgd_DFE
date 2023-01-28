@@ -720,7 +720,7 @@ class UnitarySimulator(g.Component):
         else: m = [(((1<<i)+(1<<j)) ^ c, c) for i in range(num_qbits-1) for j in range(i+1, num_qbits) for c in range(pow2qb)]
         d = {x: [[] for _ in range(num_inner_splits)] for x in range(1<<num_qbits)}
         for x in m: d[x[0]][x[1]//min(pow2qb, 256)].append(x[1]%min(pow2qb, 256)) 
-        masks = {frozenset(d[x][i]) for x in d for i in range(num_inner_splits)}
+        masks = {frozenset(d[x][i]) for x in d for i in range(num_inner_splits) if len(d[x][i]) != 0}
         md = {len(x): [] for x in masks}
         for x in masks: md[len(x)].append(x)
         sortkeys = list(sorted(md))
@@ -853,6 +853,7 @@ class UnitarySimulator(g.Component):
                 outpcorrection = g.zeros((320,), dtype=g.float32, layout=get_slice4(WEST, 0, 3, 0) + ", A1(4084)", name="outpcorrection")
                 outpcorrection2 = g.zeros((320,), dtype=g.float32, layout=get_slice4(WEST, 0, 3, 0) + ", A1(4083)", name="outpcorrection2")
                 g.add_mem_constraints([identmat, correctionmat1], [identmat, correctionmat1, onepoint], g.MemConstraintType.NOT_MUTUALLY_EXCLUSIVE)
+            else: cormatlen1 = 0
             resetzerosorig = g.zeros((320,), dtype=g.uint8, layout=get_slice1(WEST, 2, 0) + ", A1(4095)", name="resetzerosorig")
             distmaps = [g.from_data(np.array([[i] + [16]*319 for i in range(16)], dtype=np.uint8), name="distmaps", layout=get_slice1(hemi, 37, 1) + ", A16(4080-4095)") for hemi in (WEST, EAST)]
             lowmask = g.from_data(np.array(([7]*2+[0]*14)*20, dtype=np.uint8), name="lowmask", layout=get_slice1(WEST, 0, 0) + ", A1(4087)")
@@ -1439,9 +1440,9 @@ def main():
     #10 qbits max for single bank, 11 qbits requires dual chips [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 7, 26, 104]
     #import math; [math.ceil(((1<<x)*int(math.ceil((1<<x)/320)))/8192) for x in range(15)]
     #UnitarySimulator.validate_alus()
-    num_qbits = 10
+    #num_qbits = 10
     #UnitarySimulator.unit_test(num_qbits)
-    UnitarySimulator.chain_test(num_qbits, get_max_gates(num_qbits, max_levels), False)
+    #UnitarySimulator.chain_test(num_qbits, get_max_gates(num_qbits, max_levels), False)
     #UnitarySimulator.checkacc()
     #UnitarySimulator.perfcompare()
 if __name__ == "__main__":
