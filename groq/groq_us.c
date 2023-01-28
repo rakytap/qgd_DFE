@@ -166,7 +166,7 @@ size_t max_gates[] = {
     MAX_GATES(7), MAX_GATES(8), MAX_GATES(9), MAX_GATES(10)
 };
 #endif
-size_t chain_sizes[] = { 40, 20, 20, 20, 20, 20, 20, 16, 10 };
+size_t chain_sizes[] = { 20, 20, 20, 16, 16, 16, 16, 16, 10 };
 uint32_t gateinput_ptindex = -1;
 
 const char* TENSOR_TYPES[] = {"UNKNOWN", "UINT8", "UINT16", "UINT32", "INT8", "INT16", "INT32", "FLOAT16", "FLOAT32", "BOOL"};
@@ -414,7 +414,7 @@ int initialize_groq(unsigned int num_qbits)
                         memcpy(&inpLayouts[2], &tl, sizeof(TensorLayout));
                     } else if (strcmp(name, "qbits") == 0) {
                         memcpy(&inpLayouts[3], &tl, sizeof(TensorLayout));
-                    } else if (strcmp(name, "<mt>") == 0) {
+                    } else if (strcmp(name, "traces") == 0) {
                         memcpy(&outpLayouts[0], &tl, sizeof(TensorLayout));
                     } else {
                         printf("Unknown tensor: %s\n", name);
@@ -890,6 +890,8 @@ int calcqgdKernelGroq_oneShot(size_t rows, size_t cols, gate_kernel_type* gates,
                             return 1;
                         } 
                         for (size_t i = 0; i < maxinnerdim; i++) {
+                            printf("%f %f %f\n", buf[i], buf[maxinnerdim+i], buf[2*maxinnerdim+i]);
+                            
                             curtrace[0] += buf[i];
                             curtrace[1] += buf[maxinnerdim+i];
                             curtrace[2] += buf[2*maxinnerdim+i];
@@ -904,11 +906,11 @@ int calcqgdKernelGroq_oneShot(size_t rows, size_t cols, gate_kernel_type* gates,
                                 rb[2][byteidx] = output[3*320*byteidx+2*320+i];
                             }
                             float re = *bytesToFloat(rb[0]);
-                            curtrace[0] += re;
+                            curtrace[2] += re; //memory row order is correction2, correction1, trace
                             re = *bytesToFloat(rb[1]);
                             curtrace[1] += re;
                             re = *bytesToFloat(rb[2]);
-                            curtrace[2] += re;
+                            curtrace[0] += re;
                         }
 #endif
                         //printf("\n");
@@ -999,16 +1001,16 @@ int main(int argc, char* argv[])
         }
     }
     load2groq(data, rows, cols);
-    int gatesNum = mx_gates,
-        gateSetNum = 976;
+    int gatesNum = 20, //mx_gates,
+        gateSetNum = 4;
     gate_kernel_type* gates = (gate_kernel_type*)calloc(gatesNum * gateSetNum, sizeof(gate_kernel_type));
-    for (int i = 0; i < gatesNum; i++) {
-        for (int d = 0; d < gateSetNum; d++) {
+    for (int d = 0; d < gateSetNum; d++) {
+        for (int i = 0; i < gatesNum; i++) {
             gates[i+d*gatesNum].Theta = ((25+i+d)%64)<<25;
-            gates[i+d*gatesNum].Lambda = ((50+i)%64)<<25;
-            gates[i+d*gatesNum].Phi = ((55+i)%64)<<25;
             gates[i+d*gatesNum].target_qbit = i % num_qbits;
             gates[i+d*gatesNum].control_qbit = (i*2+d+1) % num_qbits;
+            gates[i+d*gatesNum].Phi = gates[i+d*gatesNum].target_qbit != gates[i+d*gatesNum].control_qbit ? 0 : ((55+i)%64)<<25;            
+            gates[i+d*gatesNum].Lambda = gates[i+d*gatesNum].target_qbit != gates[i+d*gatesNum].control_qbit ? 0 : ((50+i)%64)<<25;
             gates[i+d*gatesNum].metadata = 0;
         } 
     }
