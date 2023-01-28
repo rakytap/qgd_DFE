@@ -414,7 +414,7 @@ int initialize_groq(unsigned int num_qbits)
                         memcpy(&inpLayouts[2], &tl, sizeof(TensorLayout));
                     } else if (strcmp(name, "qbits") == 0) {
                         memcpy(&inpLayouts[3], &tl, sizeof(TensorLayout));
-                    } else if (strcmp(name, "singledim") == 0) {
+                    } else if (strcmp(name, "<mt>") == 0) {
                         memcpy(&outpLayouts[0], &tl, sizeof(TensorLayout));
                     } else {
                         printf("Unknown tensor: %s\n", name);
@@ -843,7 +843,7 @@ int calcqgdKernelGroq_oneShot(size_t rows, size_t cols, gate_kernel_type* gates,
                             return 1;
                         }        
                         //output format when unitary returned: FLOAT32 (2*rows, cols) where inner splits are outermost dimension
-                        double curtrace = 0.0;
+                        double curtrace[3] = { 0.0, 0.0, 0.0 };
 /*#ifdef USE_GROQ_HOST_FUNCS
                         Complex8* data = (Complex8*)malloc(sizeof(Complex8)*rows*cols);
                         float* buf = (float*)malloc(2*rows*cols*sizeof(float)); //logical shape of result is (num_inner_splits, rows, 2, min(256, cols))
@@ -883,28 +883,38 @@ int calcqgdKernelGroq_oneShot(size_t rows, size_t cols, gate_kernel_type* gates,
                         }
 #endif*/
 #ifdef USE_GROQ_HOST_FUNCS
-                        float* buf = (float*)malloc(maxinnerdim*sizeof(float));
-                        status = groq_tensor_layout_to_host(outpLayouts[0], output, 320*sizeof(float), (unsigned char*)buf, maxinnerdim*sizeof(float));
+                        float* buf = (float*)malloc(3*maxinnerdim*sizeof(float));
+                        status = groq_tensor_layout_to_host(outpLayouts[0], output, 3*320*sizeof(float), (unsigned char*)buf, 3*maxinnerdim*sizeof(float));
                         if (status) {
                             printf("ERROR: tensor layout to host %d\n", status);
                             return 1;
                         } 
                         for (size_t i = 0; i < maxinnerdim; i++) {
-                            curtrace += buf[i];
+                            curtrace[0] += buf[i];
+                            curtrace[1] += buf[maxinnerdim+i];
+                            curtrace[2] += buf[2*maxinnerdim+i];
                         }
                         free(buf);
 #else
                         for (size_t i = 0; i < maxinnerdim; i++) {                            
-                            unsigned char rb[sizeof(float)]; //hemisphere placement WEST on both output programs so no order reversal
+                            unsigned char rb[3][sizeof(float)]; //hemisphere placement WEST on both output programs so no order reversal
                             for (size_t byteidx = 0; byteidx < sizeof(float); byteidx++) {
-                                rb[byteidx] = output[320*byteidx+i];
+                                rb[0][byteidx] = output[3*320*byteidx+i];
+                                rb[1][byteidx] = output[3*320*byteidx+320+i];
+                                rb[2][byteidx] = output[3*320*byteidx+2*320+i];
                             }
-                            float re = *bytesToFloat(rb);
-                            curtrace += re;                            
+                            float re = *bytesToFloat(rb[0]);
+                            curtrace[0] += re;
+                            re = *bytesToFloat(rb[1]);
+                            curtrace[1] += re;
+                            re = *bytesToFloat(rb[2]);
+                            curtrace[2] += re;
                         }
 #endif
                         //printf("\n");
-                        trace[curGateSet[d]] = curtrace;
+                        trace[3*curGateSet[d]] = curtrace[0];
+                        trace[3*curGateSet[d]+1] = curtrace[1];
+                        trace[3*curGateSet[d]+2] = curtrace[2];
                         //free(data);
                         
                         curGateSet[d] = -1;
@@ -1002,10 +1012,10 @@ int main(int argc, char* argv[])
             gates[i+d*gatesNum].metadata = 0;
         } 
     }
-    double* trace = (double*)calloc(gateSetNum, sizeof(double));
+    double* trace = (double*)calloc(3*gateSetNum, sizeof(double));
     calcqgdKernelGroq(rows, cols, gates, gatesNum, gateSetNum, trace);
     for (int i = 0; i < gateSetNum; i++) {
-        printf("%.9f\n", trace[i]);
+        printf("%.9f %.9f %.9f\n", trace[3*i], trace[3*i+1], trace[3*i+2]);
     }
     free(data);
     free(gates);
