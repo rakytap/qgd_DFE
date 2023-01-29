@@ -4,7 +4,11 @@ RELEASE_DIR := "$(DIST_DIR)/release"
 DEBUG_DIR := "$(DIST_DIR)/debug"
 
 ##### Target executable or shared-object name. ####
-TARGET := libqgdDFE.so
+ifeq ($(strip $(TENQUBITS)), true)
+	TARGET := libqgdDFE_10qubits.so
+else
+	TARGET := libqgdDFE.so
+endif
 
 ##### SLiC configuration #####
 USE_SLIC=1
