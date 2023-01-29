@@ -71,23 +71,38 @@ int get_chained_gates_num() {
 }
 
 
-/**
-@brief Call to set the number of DFEs to be used in the calculations
-*/
-void set_accelerator_num( const size_t accelerator_num_in ) {
 
-    accelerator_num = accelerator_num_in;
+
+
+/**
+@brief Call to get the number of available DFEs.
+*/
+size_t get_accelerator_avail_num() {
+
+    max_file_t* maxfile_loc = qgdDFE_init();
+
+    size_t num = max_count_engines_present(maxfile_loc, "local:*");
+
+    max_file_free(maxfile_loc);
+
+    return num;
 
 }
 
 
 
 /**
-@brief Call to get the number of DFEs to be used in the calculations
+@brief Call to get the number of free DFEs.
 */
-size_t get_accelerator_num() {
+size_t get_accelerator_free_num() {
 
-    return accelerator_num;
+    max_file_t* maxfile_loc = qgdDFE_init();
+
+    size_t num = max_count_engines_free (maxfile_loc, "local:*");
+
+    max_file_free(maxfile_loc);
+
+    return num;
 
 }
 
@@ -108,13 +123,7 @@ void releive_DFE()
     // unload the max files from the devices
     initialized = false;
 
-    if ( accelerator_num == 1 ) {
-        max_unload(engine);
-    }
-    else if ( accelerator_num == 2 ) {
-        max_unload_group(engine_group);
-    }
-    else if ( accelerator_num == 3 ) {
+    if ( accelerator_num <= 3 ) {
         max_unload_group(engine_group);
     }
     else {
@@ -130,10 +139,12 @@ void releive_DFE()
 /**
 @brief Interface function to initialize DFE
 */
-int initialize_DFE()
+int initialize_DFE( const int accelerator_num_in )
 {
 
     if (initialized) return 0;
+
+    accelerator_num = accelerator_num_in;
   
 	
     maxfile = qgdDFE_init();
@@ -142,40 +153,22 @@ int initialize_DFE()
     if (!maxfile) return 1;
 
 
-printf("Number of available engines: %d, number of free engines %d\n", max_count_engines_present(maxfile, "local:*"), max_count_engines_free (maxfile, "local:*") );
+
 
     if ( accelerator_num == 0 ) {
         initialized = false;
         return 0;
     }
-    else if ( accelerator_num == 1 ) {
+    else if ( accelerator_num <= 3 ) {
 
-        engine = max_load(maxfile, "local:*");
-
-        if (!engine) { 
-            max_file_free(maxfile); 
-            return 1; 
-        }
-
-    }
-    else if ( accelerator_num == 2 ) {
-
-        engine_group = max_load_group(maxfile, MAXOS_EXCLUSIVE, "local:*", 2);
+        engine_group = max_load_group(maxfile, MAXOS_EXCLUSIVE, "local:*", accelerator_num);
 
         if (!engine_group) { 
             max_file_free(maxfile); 
             return 1; 
         }
 
-    }
-    else if ( accelerator_num == 3 ) {
 
-        engine_group = max_load_group(maxfile, MAXOS_EXCLUSIVE, "local:*", 3);
-  
-        if (!engine_group) { 
-            max_file_free(maxfile); 
-            return 1; 
-        }
     }
     else {
         printf("initialize_DFE: Unsopported number of DFEs on this system\n.");
@@ -202,8 +195,8 @@ printf("Number of available engines: %d, number of free engines %d\n", max_count
 int load2LMEM( Complex16* data, size_t rows, size_t cols ) {
 
     // test whether the DFE engine can be initialized
-    if ( initialize_DFE() ) {
-        printf("Failed to initialize the DFE engine\n");
+    if ( !initialized ) {
+        printf("DFE engine needs to be initialized\n");
         return 1;
     }
 
@@ -225,11 +218,16 @@ int load2LMEM( Complex16* data, size_t rows, size_t cols ) {
 
     if ( accelerator_num == 1 ) {
 
-        qgdDFE_writeLMem_actions_t interface_actions;
-        interface_actions.param_element_num = 2*element_num;
-        interface_actions.instream_fromcpu = (void*)data_fix;
+        // upload data to DFE LMEM
+        qgdDFE_writeLMem_actions_t *pinterface_actions[1];
+        qgdDFE_writeLMem_actions_t interface_actions[1];
+        interface_actions[0].param_element_num = 2*element_num;
+        interface_actions[0].instream_fromcpu = (void*)data_fix;
+        pinterface_actions[0] = &interface_actions[0];
 
-        qgdDFE_writeLMem_run( engine, &interface_actions);
+        max_run_t* run0 = qgdDFE_writeLMem_run_group_nonblock(engine_group, pinterface_actions[0]);
+        max_wait(run0); 
+
 
     }
     else if ( accelerator_num == 2 ) {
@@ -303,7 +301,10 @@ int load2LMEM( Complex16* data, size_t rows, size_t cols ) {
 int calcqgdKernelDFE_oneShot(size_t rows, size_t cols, gate_kernel_type* gates, int gatesNum, int gateSetNum, double* trace )
 {
 
-
+    if ( !initialized ) {
+        printf("DFE engine needs to be initialized\n");
+        return 1;
+    }
 
     if ( gatesNum % (get_chained_gates_num()) > 0 ) {
         printf("The number of gates should be a multiple of %d, but %d was given\n", qgdDFE_CHAINED_GATES_NUM, gatesNum);
@@ -377,20 +378,20 @@ int calcqgdKernelDFE_oneShot(size_t rows, size_t cols, gate_kernel_type* gates, 
         }
 
 
+        qgdDFE_actions_t *pinterface_actions[1];
+        qgdDFE_actions_t interface_actions[1];
 
-        qgdDFE_actions_t interface_actions;
- 
-        interface_actions.param_rows                 = rows;
-        interface_actions.param_cols                 = cols;
-        interface_actions.param_gatesNum             = gatesNum;
-        interface_actions.param_gateSetNum           = gateSetNum_splitted;
-        interface_actions.instream_gatesfromcpu      = gates_chunked;
-        interface_actions.instream_size_gatesfromcpu = sizeof(gate_kernel_type)*gatesNum*gateSetNum;
-        //interface_actions.ticks_GateDataSplitKernel  = gatesNum*gateSetNum;
-        interface_actions.outstream_trace2cpu        = trace_fix;
-  
+        interface_actions[0].param_rows                 = rows;
+        interface_actions[0].param_cols                 = cols;
+        interface_actions[0].param_gatesNum             = gatesNum;
+        interface_actions[0].param_gateSetNum           = gateSetNum_splitted;
+        interface_actions[0].instream_gatesfromcpu      = gates_chunked;
+        interface_actions[0].instream_size_gatesfromcpu = sizeof(gate_kernel_type)*gatesNum*gateSetNum;
+        interface_actions[0].outstream_trace2cpu        = trace_fix; 
+        pinterface_actions[0] = &interface_actions[0];
 
-        qgdDFE_run(	engine, &interface_actions);  
+        max_run_t* run0 = qgdDFE_run_group_nonblock(engine_group, pinterface_actions[0]);
+        max_wait(run0); 
 
         free( gates_chunked );
         gates_chunked = NULL;
