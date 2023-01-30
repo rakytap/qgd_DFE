@@ -28,18 +28,13 @@ us%:
 usall:
 	$(CC) $(CFLAGS) $(INCLUDES) -obuild/libqgdDFE.so $(SRCS) $(LFLAGS) $(LIBS) -shared -O3 -fPIC -Wall
 
-usalldual:
-	$(CC) $(CFLAGS) $(INCLUDES) -obuild/libqgdDFE.so $(SRCS) $(LFLAGS) $(LIBS) -shared -O3 -fPIC -Wall -DNUM_DEVICE=2
-
 testus%:
 	$(CC) $(CFLAGS) $(INCLUDES) -obuild/testus$* $(SRCS) $(LFLAGS) $(LIBS) -DNUM_QBITS=$* -DTEST -O3 -Wall -g
 
 testus:
 	$(CC) $(CFLAGS) $(INCLUDES) -obuild/testus $(SRCS) $(LFLAGS) $(LIBS) -DTEST -O3 -Wall -g
  
-single: geniop usall
-
-dual: geniop usalldual
+all: geniop usall
 
 test: geniop us2 us3 us4 us5 us6 us7 us8 us9 us10 testus2 testus3 testus4 testus5 testus6 testus7 testus8 testus9 testus10
 
