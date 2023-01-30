@@ -11,9 +11,9 @@
 #endif
 
 typedef struct {
-  float real;
-  float imag;
-} Complex8;
+  double real;
+  double imag;
+} Complex16;
 
 typedef struct {
 	int32_t Theta;
@@ -26,19 +26,20 @@ typedef struct {
 } gate_kernel_type;
 
 Driver driver = NULL;
-#ifndef NUM_DEVICE
-#define NUM_DEVICE 1
-#endif
-Device device[NUM_DEVICE] = {NULL};
+#define MAX_DEVICE 128
+Device device[MAX_DEVICE] = {NULL};
 IOP prog = NULL;
-IOBufferArray* inputBuffers[NUM_DEVICE] = {NULL};
-IOBufferArray* outputBuffers[NUM_DEVICE] = {NULL};
+IOBufferArray* inputBuffers[MAX_DEVICE] = {NULL};
+IOBufferArray* outputBuffers[MAX_DEVICE] = {NULL};
 TensorLayout inpLayouts[4] = {NULL};
 TensorLayout outpLayouts[1] = {NULL};
 unsigned int loaded = 0;
 
+/// number of utilized DFEs
+static size_t accelerator_num = 0;
+
 #define releive_groq releive_DFE 
-#define initialize_groq initialize_DFE 
+//#define initialize_groq initialize_DFE
 #define load2groq load2LMEM
 #define calcqgdKernelGroq_oneShot calcqgdKernelDFE_oneShot
 #define calcqgdKernelGroq calcqgdKernelDFE
@@ -51,7 +52,7 @@ extern "C" void releive_groq()
         unsigned int num_programs = 0;
         status = groq_iop_get_number_of_programs(prog, &num_programs);
         
-        for (size_t i = 0; i < NUM_DEVICE; i++) {
+        for (size_t i = 0; i < accelerator_num; i++) {
             for (unsigned int j = 0; j < num_programs; j++) {  
                 if (inputBuffers[i] && inputBuffers[i][j]) {
                     status = groq_deallocate_iobuffer_array(inputBuffers[i][j]);
@@ -83,7 +84,7 @@ extern "C" void releive_groq()
         prog = NULL;
     }
 
-    for (size_t i = 0; i < NUM_DEVICE; i++) {
+    for (size_t i = 0; i < accelerator_num; i++) {
         if (device[i]) {
             status = groq_device_close(device[i]);
             if (status) {
@@ -171,8 +172,81 @@ uint32_t gateinput_ptindex = -1;
 
 const char* TENSOR_TYPES[] = {"UNKNOWN", "UINT8", "UINT16", "UINT32", "INT8", "INT16", "INT32", "FLOAT16", "FLOAT32", "BOOL"};
 
+/**
+@brief Call to get the number of available DFEs.
+*/
+extern "C" size_t get_accelerator_avail_num() {
+  Status status = groq_init(&driver);
+  if (status) {
+    printf("ERROR: groq init error %d\n", status);
+    return 0;
+  }
+  unsigned int num_devices = 0;
+  status = groq_get_number_of_devices(driver, &num_devices);
+  if (status) {
+    printf("ERROR: get num of devices error %d\n", status);
+    return 0;
+  }
+    status = groq_deinit(&driver);
+    if (status) {
+        printf("ERROR: close device error %d\n", status);
+    }  
+  return num_devices;
+}
+
+/**
+@brief Call to get the number of free DFEs.
+*/
+extern "C" size_t get_accelerator_free_num() {
+  Status status = groq_init(&driver);
+  if (status) {
+    printf("ERROR: groq init error %d\n", status);
+    return 0;
+  }
+  unsigned int num_devices = 0, free_devices = 0;
+  status = groq_get_number_of_devices(driver, &num_devices);
+  if (status) {
+    printf("ERROR: get num of devices error %d\n", status);
+    return 0;
+  }
+  for (unsigned int i = 0; i < num_devices; ++i) {
+      status = groq_get_nth_device(driver, i, &device[i]);
+      if (status) {
+        printf("ERROR: get nth device error %d, i = %d\n", status, i);
+        continue;
+      }
+
+      status = groq_device_open(device[i]);
+      if (status){
+        printf("ERROR: device %d open error %d\n", i, status);
+        continue;
+      }
+
+      if(!groq_device_is_locked(device[i])) {
+        printf("ERROR: device is not locked\n");
+      } else free_devices++;
+
+      status = groq_device_close(device[i]);
+      if (status) {
+          printf("ERROR: close device error %d\n", status);
+      }
+  }
+  status = groq_deinit(&driver);
+  if (status) {
+      printf("ERROR: close device error %d\n", status);
+  }  
+  return free_devices;
+}
+
+extern "C" int initialize_DFE( const int accelerator_num_in )
+{
+    if (accelerator_num_in != (int)accelerator_num) releive_groq(); 
+    accelerator_num = accelerator_num_in;
+    return 0;
+}
+
 #ifdef NUM_QBITS
-int initialize_groq()
+int initialize_groq( )
 #else
 int initialize_groq(unsigned int num_qbits)
 #endif
@@ -196,7 +270,7 @@ int initialize_groq(unsigned int num_qbits)
     printf("ERROR: get num of devices error %d\n", status);
     return 1;
   }
-  if (num_devices > NUM_DEVICE) num_devices = NUM_DEVICE;
+  if (num_devices > accelerator_num) num_devices = accelerator_num;
   // Find the size of the file and allocate corresponding buffer
 #ifdef NUM_QBITS
   size_t prog_size = sizeof(binary_groq_program);
@@ -281,7 +355,7 @@ int initialize_groq(unsigned int num_qbits)
       }
       devidx++;
     }
-    if (devidx != NUM_DEVICE) {
+    if (devidx != accelerator_num) {
         printf("ERROR: number of requested devices not acquired\n");
         return 1;
     }
@@ -301,7 +375,7 @@ int initialize_groq(unsigned int num_qbits)
       printf("ERROR: iop get number of programs error %d\n", status);
       return 1;
     }
-    for (unsigned int d = 0; d < NUM_DEVICE; ++d) {
+    for (unsigned int d = 0; d < accelerator_num; ++d) {
       //printf("number of programs: %u\n", num_programs);
       inputBuffers[d] = (IOBufferArray*)malloc(sizeof(IOBufferArray)*num_programs);
       outputBuffers[d] = (IOBufferArray*)malloc(sizeof(IOBufferArray)*num_programs);
@@ -476,10 +550,10 @@ int initialize_groq(unsigned int num_qbits)
   }
 #ifdef NUM_QBITS
   loaded = NUM_QBITS;
-  printf("Initialized Groq for %d qbits on %d devices\n", NUM_QBITS, NUM_DEVICE);
+  printf("Initialized Groq for %d qbits on %lu devices\n", NUM_QBITS, accelerator_num);
 #else  
   loaded = num_qbits;
-  printf("Initialized Groq for %d qbits on %d devices\n", num_qbits, NUM_DEVICE);
+  printf("Initialized Groq for %d qbits on %lu devices\n", num_qbits, accelerator_num);
 #endif
   return 0;
 }
@@ -517,7 +591,7 @@ unsigned int log2(unsigned int v)
 
 //#define USE_GROQ_HOST_FUNCS
 
-extern "C" int load2groq(Complex8* data, size_t rows, size_t cols)
+extern "C" int load2groq(Complex16* data, size_t rows, size_t cols)
 {
     // test whether the DFE engine can be initialized
 #ifdef NUM_QBITS
@@ -550,8 +624,8 @@ extern "C" int load2groq(Complex8* data, size_t rows, size_t cols)
     size_t rowinner = num_inner_splits*rows*320;
     size_t imag_offset = offset+4*rowinner;
 #endif
-    Completion completion[NUM_DEVICE];
-    for (size_t d = 0; d < NUM_DEVICE; d++) {
+    Completion completion[accelerator_num];
+    for (size_t d = 0; d < accelerator_num; d++) {
         Status status = groq_get_data_handle(inputBuffers[d][0], 0, &input);
         if (status) {
             printf("ERROR: get data handle %d\n", status);
@@ -576,7 +650,8 @@ extern "C" int load2groq(Complex8* data, size_t rows, size_t cols)
 #else
         for (size_t i = 0; i < rows; i++) { //effective address order dimension as S8 is (2, 4, num_inner_splits, rows, 320)
             for (size_t j = 0; j < cols; j++) {
-                unsigned char* re = floatToBytes(&data[i*cols+j].real), *im = floatToBytes(&data[i*cols+j].imag);
+                float real = data[i*cols+j].real, imag = data[i*cols+j].imag;
+                unsigned char* re = floatToBytes(&real), *im = floatToBytes(&imag);
                 size_t innerdim = j % maxinnerdim;
                 size_t innersplit = j / maxinnerdim;
                 size_t inneroffs = innersplit*rows*320+i*320+innerdim;
@@ -596,7 +671,7 @@ extern "C" int load2groq(Complex8* data, size_t rows, size_t cols)
             return 1;
         }
     }
-    for (size_t d = 0; d < NUM_DEVICE; d++) {
+    for (size_t d = 0; d < accelerator_num; d++) {
         int completionCode;
         while (!(completionCode = groq_poll_completion(completion[d])));
         if (completionCode != GROQ_COMPLETION_SUCCESS) {
@@ -750,16 +825,16 @@ void* dataPrepFunc(void* arg)
 int calcqgdKernelGroq_oneShot(size_t rows, size_t cols, gate_kernel_type* gates, int gatesNum, int gateSetNum, double* trace )
 {
     //printf("oneShot with %d gates and %d gate sets\n", gatesNum, gateSetNum);
-    int curGateSet[NUM_DEVICE];
-    for (int d = 0; d < NUM_DEVICE; d++) { curGateSet[d] = -1; }
-    int curStep[NUM_DEVICE] = {0};
+    int curGateSet[accelerator_num];
+    for (size_t d = 0; d < accelerator_num; d++) { curGateSet[d] = -1; }
+    int curStep[accelerator_num] = {0};
     int nextGateSet = 0;
 #ifdef TEST
-    struct timespec times[NUM_DEVICE];
+    struct timespec times[accelerator_num];
     double totalinvoketime = 0.0;
     int totalinvokes = 0;
 #endif
-    Completion completion[NUM_DEVICE];
+    Completion completion[accelerator_num];
 #ifdef NUM_QBITS
     int num_qbits = NUM_QBITS;
     size_t mx_gates = MAX_GATES;
@@ -806,7 +881,7 @@ int calcqgdKernelGroq_oneShot(size_t rows, size_t cols, gate_kernel_type* gates,
     //struct timespec starttime;
     //timespec_get(&starttime, TIME_UTC);
     while (true) {
-        for (int d = 0; d < NUM_DEVICE; d++) {        
+        for (size_t d = 0; d < accelerator_num; d++) {        
             if (curGateSet[d] == -1) {
                 //if (nextGateSet >= gateSetNum) continue;
                 if (nextGateSet >= preprocessGates.completionCount) continue;
@@ -826,7 +901,7 @@ int calcqgdKernelGroq_oneShot(size_t rows, size_t cols, gate_kernel_type* gates,
 #ifdef TEST
                     struct timespec t;
                     timespec_get(&t, TIME_UTC);
-                    printf("Invoke->Complete Device %d Step %d: %.9f\n", d, curStep[d], (t.tv_sec - times[d].tv_sec) + (t.tv_nsec - times[d].tv_nsec) / 1e9);
+                    printf("Invoke->Complete Device %lu Step %d: %.9f\n", d, curStep[d], (t.tv_sec - times[d].tv_sec) + (t.tv_nsec - times[d].tv_nsec) / 1e9);
                     totalinvoketime += (t.tv_sec - times[d].tv_sec) + (t.tv_nsec - times[d].tv_nsec) / 1e9; totalinvokes++;
 #endif                
 
@@ -845,7 +920,7 @@ int calcqgdKernelGroq_oneShot(size_t rows, size_t cols, gate_kernel_type* gates,
                         //output format when unitary returned: FLOAT32 (2*rows, cols) where inner splits are outermost dimension
                         double curtrace[3] = { 0.0, 0.0, 0.0 };
 /*#ifdef USE_GROQ_HOST_FUNCS
-                        Complex8* data = (Complex8*)malloc(sizeof(Complex8)*rows*cols);
+                        Complex16* data = (Complex16*)malloc(sizeof(Complex16)*rows*cols);
                         float* buf = (float*)malloc(2*rows*cols*sizeof(float)); //logical shape of result is (num_inner_splits, rows, 2, min(256, cols))
                         status = groq_tensor_layout_to_host(outpLayouts[0], output, num_inner_splits*2*rows*4*320, (unsigned char*)buf, 2*rows*cols*sizeof(float)); 
                         if (status) {
@@ -950,11 +1025,11 @@ int calcqgdKernelGroq_oneShot(size_t rows, size_t cols, gate_kernel_type* gates,
             }
         }
         if (nextGateSet >= gateSetNum) {
-            int d;
-            for (d = 0; d < NUM_DEVICE; d++) {
+            size_t d;
+            for (d = 0; d < accelerator_num; d++) {
                 if (curGateSet[d] != -1) break; 
             }
-            if (d == NUM_DEVICE) break;
+            if (d == accelerator_num) break;
         }        
     }
 #ifdef TEST
@@ -972,8 +1047,8 @@ int calcqgdKernelGroq_oneShot(size_t rows, size_t cols, gate_kernel_type* gates,
 
 extern "C" int calcqgdKernelGroq(size_t rows, size_t cols, gate_kernel_type* gates, int gatesNum, int gateSetNum, double* trace)
 {
-    /*for (int gateSet = 0; gateSet < gateSetNum; gateSet += NUM_DEVICE) {
-        if (calcqgdKernelGroq_oneShot(rows, cols, gates+gateSet, gatesNum, gateSetNum-gateSet < NUM_DEVICE ? gateSetNum-gateSet : NUM_DEVICE, trace+gateSet)) return 1;
+    /*for (int gateSet = 0; gateSet < gateSetNum; gateSet += accelerator_num) {
+        if (calcqgdKernelGroq_oneShot(rows, cols, gates+gateSet, gatesNum, gateSetNum-gateSet < accelerator_num ? gateSetNum-gateSet : accelerator_num, trace+gateSet)) return 1;
     }
     return 0;*/
     return calcqgdKernelGroq_oneShot(rows, cols, gates, gatesNum, gateSetNum, trace);
@@ -982,6 +1057,7 @@ extern "C" int calcqgdKernelGroq(size_t rows, size_t cols, gate_kernel_type* gat
 #ifdef TEST
 int main(int argc, char* argv[])
 {
+    initialize_DFE(get_accelerator_free_num());
 #ifndef NUM_QBITS
     for (int num_qbits = 2; num_qbits <= 10; num_qbits++) { 
     int max_gates = max_gates[NUM_QBITS-2];
@@ -992,7 +1068,7 @@ int main(int argc, char* argv[])
     if (initialize_groq()) exit(1);
 #endif    
     int rows = 1 << num_qbits, cols = 1 << num_qbits;
-    Complex8* data = (Complex8*)calloc(rows*cols, sizeof(Complex8));
+    Complex16* data = (Complex16*)calloc(rows*cols, sizeof(Complex16));
     for (int i = 0; i < rows; i++) {
         for (int j = 0; j < cols; j++) {
             //data[i*cols+j].real = i*cols*2+j;
@@ -1001,7 +1077,7 @@ int main(int argc, char* argv[])
         }
     }
     load2groq(data, rows, cols);
-    int gatesNum = 20, //mx_gates,
+    int gatesNum = mx_gates,
         gateSetNum = 4;
     gate_kernel_type* gates = (gate_kernel_type*)calloc(gatesNum * gateSetNum, sizeof(gate_kernel_type));
     for (int d = 0; d < gateSetNum; d++) {
