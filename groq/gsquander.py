@@ -122,7 +122,7 @@ def test():
             gateparams = np.repeat(parameters.reshape(1,3), 3, axis=0)
             actual, oracle = qiskit_oracle(unitary, num_qbits, gateparams, target_qbits, control_qbits), process_gates(unitary, num_qbits, gateparams, target_qbits, control_qbits)
             assert np.allclose(actual, oracle), (i, j, actual, oracle)
-test()
+#test()
 WEST, EAST = 0, 1
 s16rangeW = list(range(25, 27+1))+list(range(29, 37+1))+list(range(39,42+1))
 s16rangeE = list(range(26, 27+1))+list(range(29,42+1))
@@ -1119,7 +1119,7 @@ class UnitarySimulator(g.Component):
             unitaryrevres.set_program_output()
         """
         print_utils.infoc("\nAssembling model ...")
-        iops = pgm_pkg.assemble(auto_agt_dim=3)
+        #iops = pgm_pkg.assemble(auto_agt_dim=3)
         iops = pgm_pkg.assemble(auto_agt_dim=3, skip_assembler=chainsize!=2)        
         pgm_pkg = g.ProgramPackage(name="us" + ("unit" if output_unitary else "") + str(num_qbits) + "-" + str(max_gates), output_dir="usiop", inspect_raw=debug, gen_vis_data=debug, check_stream_conflicts=debug, check_tensor_timing_conflicts=debug)
         if chainsize != 2:
