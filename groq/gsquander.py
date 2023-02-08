@@ -566,8 +566,6 @@ class UnitarySimulator(g.Component):
             else:
                 #gate = g.from_addresses(np.array(gate.addrs).reshape(-1, g.float32.size), pow2qb, g.float32, "gatedim")
                 gatevals = np.array(g.split_vectors(gate, [1]*(gate.shape[0]))).reshape(gate.shape[0]//8, 2*2*2)
-                #gatesel_st = g.concat_vectors([gatesel[i].reshape(1,innerdim) for i in range(len(gatesel)) for _ in range(pow2qb//2*num_inner_splits//r)], (pow2qb*len(gatesel)//2*num_inner_splits//r, innerdim)).read(streams=g.SG4[1])
-                #gs = [g.mem_gather(g.concat_vectors(gatevals[:,i], (gate.shape[0]//8, innerdim)), gatesel_st, output_streams=[g.SG4[2*i if i==3 else 2*i]]) for i in range(4)]
                 gatesel_st = g.concat_vectors([gatesel[i].reshape(1,innerdim) for i in range(len(gatesel)) for _ in range(pow2qb//2*num_inner_splits//r)], (pow2qb*len(gatesel)//2*num_inner_splits//r, innerdim)).read(streams=g.SG4[1])
                 gs = [g.mem_gather(g.concat_vectors(gatevals[:,i], (gate.shape[0]//8, innerdim)), gatesel_st, output_streams=[g.SG4[2*i if i==3 else 2*i]]) for i in range(4)]
                 #gatesel_st = [gatesel[j].read(streams=g.SG4[1]) for j in range(4)]
@@ -1162,7 +1160,7 @@ class UnitarySimulator(g.Component):
         """
         print_utils.infoc("\nAssembling model ...")
         #iops = pgm_pkg.assemble(auto_agt_dim=3)
-        iops = pgm_pkg.assemble(auto_agt_dim=3, skip_assembler=chainsize!=2)                
+        iops = pgm_pkg.assemble(auto_agt_dim=3, skip_assembler=chainsize!=2)
         pgm_pkg = g.ProgramPackage(name="us" + ("unit" if output_unitary else "") + str(num_qbits) + "-" + str(max_gates), output_dir="usiop", inspect_raw=debug, gen_vis_data=debug, check_stream_conflicts=debug, check_tensor_timing_conflicts=debug)
         if chainsize != 2:
             import shutil
@@ -1249,7 +1247,7 @@ class UnitarySimulator(g.Component):
                         #progidx = int(1+1+(2+(2 if num_qbits >= 9 else 0)+(2 if num_qbits >= 10 else 0) if (i&1)!=0 else 0) + target_qbits[i]//8*2 + (0 if target_qbits[i] == control_qbits[i] else 1+(2+(target_qbits[i]//8==0))*(adjcontrolqbits[i]//8)))
                         #progidx = int(1+1+(1+(1 if num_qbits >= 9 else 0)+(2 if num_qbits >= 10 else 0) if (i&1)!=0 else 0) + target_qbits[i]//8 + (0 if target_qbits[i] == control_qbits[i] else 2*(adjcontrolqbits[i]//8)))
                         progidx = 1+1
-                        np.set_printoptions(threshold=sys.maxsize, formatter={'int':hex})
+                        #np.set_printoptions(threshold=sys.maxsize, formatter={'int':hex})
                         invoke([device], iop, progidx, 0, None, None, None)
                     progidx = 1+1+1 #1+1+(1+(1 if num_qbits >= 9 else 0)+(2 if num_qbits >= 10 else 0))*2+(num_gates&1) #1+1+(2+(2 if num_qbits >= 9 else 0)+(2 if num_qbits >= 10 else 0))*2+(num_gates&1)
                     res, _ = invoke([device], iop, progidx, 0, None, None, None)                    
@@ -1329,7 +1327,7 @@ class UnitarySimulator(g.Component):
         
     def chain_test(num_qbits, max_gates, output_unitary=False):
         pow2qb = 1 << num_qbits
-        num_gates, use_identity = 1, False #max_gates, False
+        num_gates, use_identity = max_gates, False
 
         u = np.eye(pow2qb) + 0j if use_identity else unitary_group.rvs(pow2qb)
         target_qbits = np.array([np.random.randint(num_qbits) for _ in range(num_gates)], dtype=np.uint8)
