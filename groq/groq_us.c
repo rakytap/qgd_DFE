@@ -965,8 +965,6 @@ int calcqgdKernelGroq_oneShot(size_t rows, size_t cols, gate_kernel_type* gates,
                             return 1;
                         } 
                         for (size_t i = 0; i < maxinnerdim; i++) {
-                            printf("%f %f %f\n", buf[i], buf[maxinnerdim+i], buf[2*maxinnerdim+i]);
-                            
                             curtrace[0] += buf[i];
                             curtrace[1] += buf[maxinnerdim+i];
                             curtrace[2] += buf[2*maxinnerdim+i];
