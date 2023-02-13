@@ -1,2 +1,3 @@
-# qgd_DFE
+# Data-flow engine for simulation of quantum computers
+
 DFE extension to SQUANDER
