@@ -559,7 +559,7 @@ int initialize_groq(unsigned int num_qbits)
 }
 
 extern "C" int get_chained_gates_num() {
-    return chain_sizes[loaded-2];
+    return !loaded ? 1 : chain_sizes[loaded-2];
 }
 
 
