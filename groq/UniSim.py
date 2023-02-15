@@ -11,7 +11,24 @@ levels = 5
 real=False
 
 isGroq = True
-
+def get_max_gates(num_qbits, max_levels):
+    max_gates = num_qbits+3*(num_qbits*(num_qbits-1)//2*max_levels)
+    if (max_gates % 80) != 0: max_gates += (80 - max_gates % 80)
+    return max_gates
+def groq_perf_calc(num_device=1):
+    l = 5
+    gates=[n+l*3*n*(n-1)//2 for n in range(2, 10+1)]
+    gatesets=[3*n+5*7*n*(n-1)//2 for n in range(2, 10+1)]
+    chain_sizes = [20, 20, 20, 16, 16, 16, 16, 16, 10]
+    import math
+    cycles = [2**n*int(math.ceil(2**n/320)) for n in range(2, 10+1)]
+    groqMHz, invoke_overhead, gatheradjustcycles, gateinitcycles = 900, 6400, 207, 80*55
+    gateup = [gatesets[n-2]*(invoke_overhead+cycles[n-2]+gateinitcycles+4*get_max_gates(n, 6)+get_max_gates(n, 6)*(4*8+2)) for n in range(2, 10+1)] #gates are 8 float32, target/control/derivate info packed as uint16
+    tracecalc = [gatesets[n-2]*(invoke_overhead+2**n) for n in range(2, 10+1)]
+    #make testus10; build/testus10
+    #for x in usiop/us?-*.iop; do echo $x && iop-utils stats $x; done
+    times = [(gateup[n-2]+tracecalc[n-2]+gatesets[n-2]*(invoke_overhead+(gatheradjustcycles+cycles[n-2])*chain_sizes[n-2])*int(math.ceil(gates[n-2]/chain_sizes[n-2])))/groqMHz/1000000/num_device for n in range(2, 10+1)]
+    return times
 def to_cirq(unitary, qbit_num, parameters, target_qbits, control_qbits):
     import cirq
     from cirq import Gate
