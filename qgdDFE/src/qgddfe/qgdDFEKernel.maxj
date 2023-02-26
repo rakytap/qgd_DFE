@@ -234,6 +234,12 @@ public static DFEVar ternaryAdder(DFEVar[] vars, boolean[] issub, int[] pipeline
         DFEFix aType = (DFEFix)a.getType();
         return a.cast(KernelBase.dfeFixOffset(bits + aType.getFractionBits(), -aType.getFractionBits(), aType.getSignMode()));
     }
+    
+    
+/**
+@brief Multiply two complex numbers following the Karatsuba strategy
+@param bits The number of output bits?
+*/    
     public static DFEComplex doMult(DFEComplex n1, DFEComplex n2, int bits, KernelBase <?> owner) {
         //(a+bi)(c+di)=(ac-bd)+(bc+ad)i 4 multiplications 2 additions 4M+2A
         //vs. 3 multiplications 5 additions 3M+5A
@@ -242,12 +248,15 @@ public static DFEVar ternaryAdder(DFEVar[] vars, boolean[] issub, int[] pipeline
         DFEVar c = n2.getReal();
         DFEVar b = n1.getImaginary();
         DFEVar d = n2.getImaginary();
-        DFEVar cab = 
-            mulKaratsubaSingleRoundExact(c, addExact(a, b, false, owner), bits+1, 3, owner); //2..-2 requires 3 integer bits
-        DFEComplex ret = DFEComplexType.newInstance(owner, maxIntegerBits(addExact(cab, 
-                mulKaratsubaSingleRoundExact(b, addExact(c, d, false, owner), bits+1, 3, owner), true, owner), 2),
-            maxIntegerBits(addExact(cab, 
-                mulKaratsubaSingleRoundExact(a, addExact(d, c, true, owner), bits+1, 3, owner), false, owner), 2));
+        
+        DFEVar cab = mulKaratsubaSingleRoundExact(c, addExact(a, b, false, owner), bits+1, 3, owner); //2..-2 requires 3 integer bits
+        DFEVar bcd = mulKaratsubaSingleRoundExact(b, addExact(c, d, false, owner), bits+1, 3, owner);
+        DFEVar adc = mulKaratsubaSingleRoundExact(a, addExact(d, c, true, owner), bits+1, 3, owner);
+            
+            
+        DFEComplex ret = DFEComplexType.newInstance(owner, maxIntegerBits(addExact(cab, bcd, true, owner), 2), maxIntegerBits(addExact(cab, adc, false, owner), 2));
+            
+            
         return ret;    
     }
 
@@ -276,10 +285,164 @@ public static DFEVar ternaryAdder(DFEVar[] vars, boolean[] issub, int[] pipeline
 
 	GateKernelStructType DFEstructType = new GateKernelStructType();
 
+	
+	/**
+	@brief Apply OR operation on the given bits over a tree reduction.
+	@param dfe_val_list A list of DFE bits
+	@return Returns with true, if at least one bit is 1.
+	*/
+
+		public static DFEVar Tree_OR(List<DFEVar> dfe_val_list, KernelBase <?> owner) 
+		{
+
+			owner.optimization.pushNoPipelining();
+			
+			
+			int element_num = dfe_val_list.size();
+			
+			// operator AND between the bits over a tree reduction
+			DFEVar[] reduced_elements = new DFEVar[element_num/2+1];
+			
+	        int limit = element_num/2;
+
+
+			for (int idx=0; idx<limit; idx++) {
+
+				DFEVar val1 = dfe_val_list[2*idx];
+				DFEVar val2 = dfe_val_list[2*idx+1];
+
+				reduced_elements[idx] = val1 | val2;
+			}
+
+	 		if ( 2*limit < element_num ) {				
+				reduced_elements[limit-1] = reduced_elements[limit-1] | dfe_val_list[element_num-1];
+			}
+
+
+			while (limit > 1) {
+
+				int limitNew = limit/2;
+
+				for (int idx=0; idx<limitNew; idx++) {
+					
+					DFEVar val1 = reduced_elements[2*idx];
+					DFEVar val2 = reduced_elements[2*idx+1];
+					
+					reduced_elements[idx] = val1 | val2;
+				}
+
+	 			if ( 2*limitNew < limit ) {
+	 				reduced_elements[limitNew-1] = reduced_elements[limitNew-1] | reduced_elements[limit-1];
+				}
+
+				limit = limitNew;
+
+			}
+				
+			owner.optimization.popNoPipelining();
+			
+			DFEVar ret = reduced_elements[0];
+			ret = owner.optimization.pipeline(ret);
+
+			return ret;
+	   
+		}
+		
+		
+	/**
+	@brief Apply AND operation on the given bits over a tree reduction.
+	@param dfe_val_list A list of DFE bits
+	@return Returns with true, if the bits in DFE variable are identical.
+	*/
+
+		public static DFEVar Tree_AND(List<DFEVar> dfe_val_list, KernelBase <?> owner) 
+		{
+
+			owner.optimization.pushNoPipelining();
+			
+			
+			int element_num = dfe_val_list.size();
+			
+			// operator AND between the bits over a tree reduction
+			DFEVar[] reduced_elements = new DFEVar[element_num/2+1];
+			
+	        int limit = element_num/2;
+
+
+			for (int idx=0; idx<limit; idx++) {
+
+				DFEVar val1 = dfe_val_list[2*idx];
+				DFEVar val2 = dfe_val_list[2*idx+1];
+
+				reduced_elements[idx] = val1 & val2;
+			}
+
+	 		if ( 2*limit < element_num ) {				
+				reduced_elements[limit-1] = reduced_elements[limit-1] & dfe_val_list[element_num-1];
+			}
+
+
+			while (limit > 1) {
+
+				int limitNew = limit/2;
+
+				for (int idx=0; idx<limitNew; idx++) {
+					
+					DFEVar val1 = reduced_elements[2*idx];
+					DFEVar val2 = reduced_elements[2*idx+1];
+					
+					reduced_elements[idx] = val1 & val2;
+				}
+
+	 			if ( 2*limitNew < limit ) {
+	 				reduced_elements[limitNew-1] = reduced_elements[limitNew-1] & reduced_elements[limit-1];
+				}
+
+				limit = limitNew;
+
+			}
+				
+			owner.optimization.popNoPipelining();
+			
+			DFEVar ret = reduced_elements[0];
+			ret = owner.optimization.pipeline(ret);
+
+			return ret;
+	   
+		}
+
+/**
+@brief Check the bits in the DFEVar.
+@param bitmask The bits to be checked
+@param dfe_val DFE variable
+@return Returns with true, if the bits in DFE variable are identical to the bitmask.
+*/
+
+	public static DFEVar checkBits(List<Integer> bitmask, DFEVar dfe_val, KernelBase <?> owner) 
+	{
+		
+		List<DFEVar> bits = new ArrayList<DFEVar>();
+
+
+		for( int idx=0; idx<bitmask.size(); idx++ ) {
+
+			if ( bitmask[idx] == 0 ) {
+				bits.add(~dfe_val.get( idx ) );
+			}
+			else {
+				bits.add(dfe_val.get( idx ) );
+			}
+
+		}
+
+		return Tree_AND( bits, owner);
+   
+	}
+
 
 /**
 @brief Variable bitshift to left of a constant number value.
-@param value The conatnt value to be shifted
+@param value The constant value to be shifted
 @param bits The number of representing bits
 @return Returns with the left shifted bits by a value encoded in shift (This is the DFE variable).
 */
@@ -304,9 +467,12 @@ public static DFEVar ternaryAdder(DFEVar[] vars, boolean[] issub, int[] pipeline
 @brief ????????????
 @return ??????????
 */
-	public qgdDFEKernel(final KernelParameters parameters, int dimMax, int gates_num, boolean calcTrace, boolean verbose) {
+	public qgdDFEKernel(final KernelParameters parameters, int qbit_num_max, int gates_num, boolean calcTrace, boolean verbose) {
 		super(parameters);
 		
+		int qbit_num_max_loc = qbit_num_max >= 9 ? qbit_num_max : 9;
+
+		int dimMax = 1 << qbit_num_max_loc;
 
 		// Input
 		DFEComplex x = io.input("x", cplxTypeFix32);
@@ -326,7 +492,6 @@ public static DFEVar ternaryAdder(DFEVar[] vars, boolean[] issub, int[] pipeline
 			gate_list.add( Reductions.streamHold(stream.offset(gate_input, gate_idx), inputControllerCounter === 0) );
 		}	
 
-		
 
 		for (int gate_idx=0; gate_idx<gates_num; gate_idx++) {
 	
@@ -389,6 +554,8 @@ public static DFEVar ternaryAdder(DFEVar[] vars, boolean[] issub, int[] pipeline
 		// Calculate the real trace of the transformed unitary
 		if (calcTrace==true) {
 
+			DFEVar xReal = x.getReal().cast(dataTypeFix64);
+
 			DFEVar IterationNum   = io.scalarInput("IterationNum", dfeUInt(16) );
 			DFEVar GateSetNum     = io.scalarInput("GateSetNum", dfeUInt(16) );
 			DFEVar cols         = io.scalarInput("cols", dfeUInt(11) );
@@ -402,17 +569,18 @@ public static DFEVar ternaryAdder(DFEVar[] vars, boolean[] issub, int[] pipeline
 
 			DFEVar trace      = dataTypeFix64.newInstance(this);
 
-			DFEVar addToTrace = colIdx===rowIdx ? x.getReal().cast(dataTypeFix64) : constant.var( dataTypeFix64, 0.0);
-			optimization.pushNoPipelining();
-			DFEVar prevTrace = (colIdx+rowIdx)===0 ? constant.var( dataTypeFix64, 0.0) : stream.offset(trace,-1);
-			optimization.pushNoPipelining();
+			DFEVar initializationControl = (colIdx+rowIdx)===0;
 
+
+			//optimization.pushNoPipelining();
+			DFEVar addToTrace = colIdx===rowIdx ? xReal : constant.var( dataTypeFix64, 0.0);			
+			DFEVar prevTrace = initializationControl ? constant.var( dataTypeFix64, 0.0) : stream.offset(trace,-1);
 			trace <== prevTrace + addToTrace;
-
-			// trace with single qubit error
-			DFEVar trace_1qbit_error      = dataTypeFix64.newInstance(this);
+			//optimization.popNoPipelining();
 
 			DFEVar xor = colIdx ^ rowIdx;
+
+/*
 			DFEVar trace_1qubit_control = ( xor.get(0) & ~xor.get(1) & ~xor.get(2) & ~xor.get(3) & ~xor.get(4) & ~xor.get(5) & ~xor.get(6) & ~xor.get(7) & ~xor.get(8) & ~xor.get(9) ) | 
 						      ( ~xor.get(0) & xor.get(1) & ~xor.get(2) & ~xor.get(3) & ~xor.get(4) & ~xor.get(5) & ~xor.get(6) & ~xor.get(7) & ~xor.get(8) & ~xor.get(9) ) |
 						      ( ~xor.get(0) & ~xor.get(1) & xor.get(2) & ~xor.get(3) & ~xor.get(4) & ~xor.get(5) & ~xor.get(6) & ~xor.get(7) & ~xor.get(8) & ~xor.get(9) ) |
@@ -423,34 +591,115 @@ public static DFEVar ternaryAdder(DFEVar[] vars, boolean[] issub, int[] pipeline
 						      ( ~xor.get(0) & ~xor.get(1) & ~xor.get(2) & ~xor.get(3) & ~xor.get(4) & ~xor.get(5) & ~xor.get(6) & xor.get(7) & ~xor.get(8) & ~xor.get(9) ) |
 						      ( ~xor.get(0) & ~xor.get(1) & ~xor.get(2) & ~xor.get(3) & ~xor.get(4) & ~xor.get(5) & ~xor.get(6) & ~xor.get(7) & xor.get(8) & ~xor.get(9) ) |
 						      ( ~xor.get(0) & ~xor.get(1) & ~xor.get(2) & ~xor.get(3) & ~xor.get(4) & ~xor.get(5) & xor.get(6) & ~xor.get(7) & ~xor.get(8) & xor.get(9) );
+*/
 
-			DFEVar addToTrace_1qbit = trace_1qubit_control ? x.getReal().cast(dataTypeFix64) : constant.var( dataTypeFix64, 0.0);
-			optimization.pushNoPipelining();
-			DFEVar prevTrace_1qbit = (colIdx+rowIdx)===0 ? constant.var( dataTypeFix64, 0.0) : stream.offset(trace_1qbit_error,-1);
-			optimization.pushNoPipelining();
+			// calculate the single-qubit error trace
 
+			DFEVar trace_1qbit_error      = dataTypeFix64.newInstance(this);
+			
+			List<DFEVar> bit_checks = new ArrayList<DFEVar>();
+			List<Integer> bitmask = new ArrayList<Integer>();
+			
+			
+			for( int masking_qbit=0; masking_qbit<qbit_num_max_loc; masking_qbit++ ) {
+
+				bitmask.clear();
+
+				for( int qbit_idx=0; qbit_idx<qbit_num_max_loc; qbit_idx++) {
+
+					if ( qbit_idx == masking_qbit ) {
+						bitmask.add(1);
+					}
+					else {
+						bitmask.add(0);
+					}
+									
+
+				}
+				
+				bit_checks.add( checkBits( bitmask, xor, this ) );
+				
+				
+			}
+		
+
+			DFEVar trace_1qubit_control = Tree_OR( bit_checks, this );
+
+			
+			//optimization.pushNoPipelining();
+			DFEVar addToTrace_1qbit = trace_1qubit_control ? xReal : constant.var( dataTypeFix64, 0.0);			
+			DFEVar prevTrace_1qbit = initializationControl ? constant.var( dataTypeFix64, 0.0) : stream.offset(trace_1qbit_error,-1);
 			trace_1qbit_error <== prevTrace_1qbit + addToTrace_1qbit;
+			//optimization.popNoPipelining();
+
+			// calculate the double-qubit error trace
+
+			DFEVar trace_2qbit_error      = dataTypeFix64.newInstance(this);
+
+
+			DFEVar trace_2qubit_control       = dfeUInt(1).newInstance(this);
+			
+			bit_checks.clear();
+
+			for( int masking_qbit_1=0; masking_qbit_1<qbit_num_max_loc-1; masking_qbit_1++ ) {
+
+				for( int masking_qbit_2=masking_qbit_1+1; masking_qbit_2<qbit_num_max_loc; masking_qbit_2++ ) {
+
+					bitmask.clear();
+					for( int qbit_idx=0; qbit_idx<qbit_num_max_loc; qbit_idx++) {
+
+						if ( qbit_idx == masking_qbit_1 ||  qbit_idx == masking_qbit_2 ) {
+							bitmask.add(1);
+						}
+						else {
+							bitmask.add(0);
+						}
+
+					}
+
+					bit_checks.add( checkBits( bitmask, xor, this ) );
+
+				}
+
+			
+			}
+
+			trace_2qubit_control = Tree_OR( bit_checks, this );
+
+
+			//optimization.pushNoPipelining();
+			DFEVar addToTrace_2qbit = trace_2qubit_control ? xReal : constant.var( dataTypeFix64, 0.0);
+			DFEVar prevTrace_2qbit = initializationControl ? constant.var( dataTypeFix64, 0.0) : stream.offset(trace_2qbit_error,-1);
+			//optimization.popNoPipelining();
+			trace_2qbit_error <== prevTrace_2qbit + addToTrace_2qbit;
 
 
 
-			DFEVar outputController = (rowIdx>=rows-2) & (colIdx===cols-1) & iterationIdx===IterationNum-1;
 
-                        // variabe to dinamically choose between outputs: 0 stands for the first order correction to the trace, 1 stands for the trace
-			DFEVar outputsChoice = outputController & (rowIdx === rows-1);
+
+
+			//optimization.pushNoPipelining();
+			DFEVar outputController = (rowIdx>=rows-3) & (colIdx===cols-1) & iterationIdx===IterationNum-1;
+			//optimization.popNoPipelining();
+
+			// variabe to dinamically choose between outputs: 0 stands for the first order correction to the trace, 1 stands for the trace
+			DFEVar outputsChoice = rows.slice(0,2).reinterpret(dfeUInt(2)) - rowIdx.slice(0,2).reinterpret(dfeUInt(2)) - 1;//outputController & (rowIdx === rows-1);
+			//outputsChoice = optimization.pipeline( outputsChoice );
 
 			List<DFEVar> outputs = new ArrayList<DFEVar>();
-			outputs.add( trace_1qbit_error );
 			outputs.add( trace );
+			outputs.add( trace_1qbit_error );
+			outputs.add( trace_2qbit_error );			
+
+			DFEVar output = control.mux(outputsChoice, outputs);
 			
-
-                        DFEVar output = control.mux(outputsChoice, outputs);
-
+/*
 if (verbose) {
 debug.simPrintf("trace: %f, %d, %d, %d\n", addToTrace_1qbit, trace_1qubit_control, rowIdx, colIdx);
 //debug.simPrintf("trace: %f, %d\n", x.getReal(), colIdx===rowIdx);
 //debug.simPrintf("trace: %f, %f, %d, %d, %d, %d, %d\n", x.getReal(), trace, rowIdx, colIdx, iterationIdx, IterationNum, (rowIdx>=rows-2) & (colIdx===cols-1) & iterationIdx===IterationNum-1);
 }
-
+*/
 			io.output("trace", output, dataTypeFix64, outputController);
 
 		}
