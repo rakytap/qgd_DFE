@@ -167,7 +167,8 @@ size_t max_gates[] = {
     MAX_GATES(7), MAX_GATES(8), MAX_GATES(9), MAX_GATES(10)
 };
 #endif
-size_t chain_sizes[] = { 20, 20, 20, 16, 16, 16, 16, 16, 10 };
+//size_t chain_sizes[] = { 20, 20, 20, 16, 16, 16, 16, 16, 10 };
+size_t chain_sizes[] = { 80, 80, 160, 240, 320, 200, 140, 90, 44 };
 uint32_t gateinput_ptindex = -1;
 
 const char* TENSOR_TYPES[] = {"UNKNOWN", "UINT8", "UINT16", "UINT32", "INT8", "INT16", "INT32", "FLOAT16", "FLOAT32", "BOOL"};
@@ -979,6 +980,7 @@ int calcqgdKernelGroq_oneShot(size_t rows, size_t cols, gate_kernel_type* gates,
                                 rb[2][byteidx] = output[3*320*byteidx+2*320+i];
                             }
                             float re = *bytesToFloat(rb[0]);
+                            //printf("%f\n", re);
                             curtrace[2] += re; //memory row order is correction2, correction1, trace
                             re = *bytesToFloat(rb[1]);
                             curtrace[1] += re;
