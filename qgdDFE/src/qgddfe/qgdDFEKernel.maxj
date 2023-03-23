@@ -592,9 +592,11 @@ public static DFEVar ternaryAdder(DFEVar[] vars, boolean[] issub, int[] pipeline
 		
 		DFEStruct gate_input = io.input("gates", DFEstructType, inputController);
 		
-		gate_input = optimization.limitFanout(gate_input, 10);		
+		gate_input = optimization.limitFanout(gate_input, 8);
 
-		optimization.pushGraphPipelining(0.2, Optimization.PipelinedOps.ALL);
+		optimization.pushGraphPipelining(0.5, Optimization.PipelinedOps.ALL); 
+
+
 		double pipeline_factor = optimization.peekGraphPipelining( Optimization.PipelinedOps.ALL );
 		System.out.print("graph pipelining factor in qgdDFEKernel streamHold: " + pipeline_factor  + "\n");
 		
@@ -681,13 +683,18 @@ public static DFEVar ternaryAdder(DFEVar[] vars, boolean[] issub, int[] pipeline
 
 			DFEVar IterationNum   = io.scalarInput("IterationNum", dfeUInt(16) );
 			DFEVar GateSetNum     = io.scalarInput("GateSetNum", dfeUInt(16) );
-			DFEVar cols         = io.scalarInput("cols", dfeUInt(11) );
+			DFEVar cols           = io.scalarInput("cols", dfeUInt(11) );
+			DFEVar traceOffset    = io.scalarInput("traceOffset", dfeUInt(11) );
 
-			CounterChain chain = control.count.makeCounterChain();
+			CounterChain chain  = control.count.makeCounterChain();
 			DFEVar iterationIdx = chain.addCounter(IterationNum, 1);
 			DFEVar gateSetIdx   = chain.addCounter(GateSetNum, 1);
 			DFEVar colIdx       = chain.addCounter(cols, 1);
 			DFEVar rowIdx       = chain.addCounter(rows, 1);
+
+			//optimization.pushNoPipelining();
+			DFEVar colIdx_Offset = colIdx + traceOffset;//rowIdx < traceOffset ? constant.var( dfeUInt(11), 1<<10) : rowIdx - traceOffset;
+			//optimization.popNoPipelining();
 
 
 			DFEVar trace      = dataTypeFix64.newInstance(this);
@@ -696,12 +703,12 @@ public static DFEVar ternaryAdder(DFEVar[] vars, boolean[] issub, int[] pipeline
 
 
 			//optimization.pushNoPipelining();
-			DFEVar addToTrace = colIdx===rowIdx ? xReal : constant.var( dataTypeFix64, 0.0);			
+			DFEVar addToTrace = colIdx_Offset===rowIdx ? xReal : constant.var( dataTypeFix64, 0.0);			
 			DFEVar prevTrace = initializationControl ? constant.var( dataTypeFix64, 0.0) : stream.offset(trace,-1);
 			trace <== prevTrace + addToTrace;
 			//optimization.popNoPipelining();
 
-			DFEVar xor = colIdx ^ rowIdx;
+			DFEVar xor = colIdx_Offset ^ rowIdx;
 
 /*
 			DFEVar trace_1qubit_control = ( xor.get(0) & ~xor.get(1) & ~xor.get(2) & ~xor.get(3) & ~xor.get(4) & ~xor.get(5) & ~xor.get(6) & ~xor.get(7) & ~xor.get(8) & ~xor.get(9) ) | 
@@ -729,11 +736,11 @@ public static DFEVar ternaryAdder(DFEVar[] vars, boolean[] issub, int[] pipeline
 			DFEVar trace_1qbit_error      = dataTypeFix64.newInstance(this);
 			
 			List<DFEVar> bit_checks = new ArrayList<DFEVar>();
-			List<Integer> bitmask = new ArrayList<Integer>();
+			//List<Integer> bitmask = new ArrayList<Integer>();
 			
 			
 			for( int masking_qbit=0; masking_qbit<qbit_num_max_loc; masking_qbit++ ) {
-
+/*
 				bitmask.clear();
 
 				for( int qbit_idx=0; qbit_idx<qbit_num_max_loc; qbit_idx++) {
@@ -749,7 +756,11 @@ public static DFEVar ternaryAdder(DFEVar[] vars, boolean[] issub, int[] pipeline
 				}
 				
 				bit_checks.add( checkBits( bitmask, xor, this ) );
-				
+*/
+				int bitmask = 1 << masking_qbit;
+				DFEVar bitmaskDFE = constant.var( xor.getType(), bitmask);
+
+				bit_checks.add( bitmaskDFE === 	xor );	
 				
 			}
 		
@@ -786,7 +797,7 @@ public static DFEVar ternaryAdder(DFEVar[] vars, boolean[] issub, int[] pipeline
 			for( int masking_qbit_1=0; masking_qbit_1<qbit_num_max_loc-1; masking_qbit_1++ ) {
 
 				for( int masking_qbit_2=masking_qbit_1+1; masking_qbit_2<qbit_num_max_loc; masking_qbit_2++ ) {
-
+/*
 					bitmask.clear();
 					for( int qbit_idx=0; qbit_idx<qbit_num_max_loc; qbit_idx++) {
 
@@ -800,7 +811,12 @@ public static DFEVar ternaryAdder(DFEVar[] vars, boolean[] issub, int[] pipeline
 					}
 
 					bit_checks.add( checkBits( bitmask, xor, this ) );
+*/
+					int bitmask1 = 1 << masking_qbit_1;	
+					int bitmask2 = 1 << masking_qbit_2;
+					DFEVar bitmaskDFE = constant.var( xor.getType(), bitmask1 + bitmask2);
 
+					bit_checks.add( bitmaskDFE === 	xor );	
 				}
 
 			
@@ -837,13 +853,13 @@ public static DFEVar ternaryAdder(DFEVar[] vars, boolean[] issub, int[] pipeline
 
 			DFEVar output = control.mux(outputsChoice, outputs);
 			
-/*
+
 if (verbose) {
-debug.simPrintf("trace: %f, %d, %d, %d\n", addToTrace_1qbit, trace_1qubit_control, rowIdx, colIdx);
-//debug.simPrintf("trace: %f, %d\n", x.getReal(), colIdx===rowIdx);
+debug.simPrintf("trace: %f, %f, %d, %d, %d, %d, %d\n", x.getReal(), addToTrace_1qbit, trace_1qubit_control, rowIdx, colIdx, traceOffset, colIdx_Offset);
+//debug.simPrintf("trace: %f, %d\n", x.getReal(), colIdx===rowIdx_Offset);
 //debug.simPrintf("trace: %f, %f, %d, %d, %d, %d, %d\n", x.getReal(), trace, rowIdx, colIdx, iterationIdx, IterationNum, (rowIdx>=rows-2) & (colIdx===cols-1) & iterationIdx===IterationNum-1);
 }
-*/
+
 			io.output("trace", output, dataTypeFix64, outputController);
 
 		}

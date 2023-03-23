@@ -40,7 +40,7 @@ import java.util.List;
 public class qgdDFEManager extends XilinxAlveoU250Manager {
 
 	/// number of maximally supported qubits maximally 10
-	int qbit_num_max = 9; 
+	int qbit_num_max = 10; 
 
 	/// maximal dimension of the supported unitary
 	int dim = qbit_num_max < 10 ? 512 : 1024; //because the depth of BRAM is at least 512, there is no point in selecting less than 9
@@ -48,7 +48,7 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 
 	int burstCountOneShot = 100;
 	static int chainedGatesNum = 6;
-	static int gatesNumPerKernel = 18;
+	static int gatesNumPerKernel = 13;
 	static int totalGatesInChain = chainedGatesNum*gatesNumPerKernel;
 
 /**
@@ -345,6 +345,7 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 		
 		InterfaceParam rows         = ei.addParam("rows", CPUTypes.UINT32);
 		InterfaceParam cols         = ei.addParam("cols", CPUTypes.UINT32);
+		InterfaceParam traceOffset  = ei.addParam("traceOffset", CPUTypes.UINT32);
 		InterfaceParam size         = rows*cols;
 		InterfaceParam gatesNum     = ei.addParam("gatesNum", CPUTypes.UINT16);
 
@@ -360,6 +361,7 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 					ei.setScalar("qgdDFEKernel_"+String.valueOf(idx)+"_"+String.valueOf(gate_idx), "IterationNum", gatesNum/chainedGatesNum/gatesNumPerKernel);
 					ei.setScalar("qgdDFEKernel_"+String.valueOf(idx)+"_"+String.valueOf(gate_idx), "GateSetNum", gateSetNum);
 					ei.setScalar("qgdDFEKernel_"+String.valueOf(idx)+"_"+String.valueOf(gate_idx), "cols", cols);
+					ei.setScalar("qgdDFEKernel_"+String.valueOf(idx)+"_"+String.valueOf(gate_idx), "traceOffset", traceOffset);
 				}
 			}
 		}
@@ -578,20 +580,20 @@ public class qgdDFEManager extends XilinxAlveoU250Manager {
 	        //conf.setImplementationNearMissRetries(1);
         	//conf.setImplementationNearMissThreshold(10000); //0-1000000 are considered within threshold for build success on MAX5
 //conf.setBramMappingScaleFactor(0.5);
-/*
-		conf.setSynthesisStrategy( Utility.getHighPerfSynthStrategy()); //SynthesisStrategy.FLOW_PERF_OPTIMIZED_HIGH);
+
+		conf.setSynthesisStrategy( SynthesisStrategy.FLOW_PERF_OPTIMIZED_HIGH); //Utility.getHighPerfSynthStrategy()); //SynthesisStrategy.FLOW_PERF_OPTIMIZED_HIGH);
 
 	        //Inspect output timing scores and rank from best to worst
 		boolean isProbe = false;
 	        conf.setImplementationStrategies(Utility.chooseImplementationStrategies(false, isProbe));
 	        conf.setParallelism(6);
-*/
+/*
 		conf.setImplementationStrategies( ImplementationStrategy.MAXELER4, 
 						ImplementationStrategy.MAXELER3);
 		conf.setSynthesisStrategy( SynthesisStrategy.FLOW_PERF_OPTIMIZED_HIGH );
 		conf.setParallelism( 64 );
-
-		manager.setDefaultStreamClockFrequency(350);
+*/
+		manager.setDefaultStreamClockFrequency(355);
 		
 
 

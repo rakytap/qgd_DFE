@@ -6,6 +6,8 @@ DEBUG_DIR := "$(DIST_DIR)/debug"
 ##### Target executable or shared-object name. ####
 ifeq ($(strip $(TENQUBITS)), true)
 	TARGET := libqgdDFE_10qubits.so
+else ifeq ($(strip $(SIMULATION)), true)
+	TARGET := libqgdDFE_SIM.so
 else
 	TARGET := libqgdDFE.so
 endif
@@ -159,7 +161,7 @@ run_sim: start_sim
 	@ MAXELEROSDIR="$(MAXCOMPILERDIR)/lib/maxeleros-sim" \
 		LD_PRELOAD="$(MAXCOMPILERDIR)/lib/maxeleros-sim/lib/libmaxeleros.so:$(LD_PRELOAD)" \
 		SLIC_CONF="$(SLIC_CONF);use_simulation=$(SIM_NAME)" \
-		hwloc-bind --membind node:1 --cpubind node:1 -- python /home/rakytap/IBM_circuits_results/IBM_benchmark.py
+		hwloc-bind --membind node:1 --cpubind node:1 -- python /home/rakyta.peter/SQUANDER_test/test_optmization_problem_combined.py
 	@ echo
 	@ echo "$(BIN_DIR)/$(TARGET) Terminated successfully."
 	@ echo
