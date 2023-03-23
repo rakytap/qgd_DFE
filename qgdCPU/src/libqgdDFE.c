@@ -298,7 +298,7 @@ int load2LMEM( Complex16* data, size_t rows, size_t cols ) {
  * \brief ???????????
  * 
  */
-int calcqgdKernelDFE_oneShot(size_t rows, size_t cols, gate_kernel_type* gates, int gatesNum, int gateSetNum, double* trace )
+int calcqgdKernelDFE_oneShot(size_t rows, size_t cols, gate_kernel_type* gates, int gatesNum, int gateSetNum, int traceOffset, double* trace )
 {
 
     if ( !initialized ) {
@@ -385,6 +385,7 @@ int calcqgdKernelDFE_oneShot(size_t rows, size_t cols, gate_kernel_type* gates, 
         interface_actions[0].param_cols                 = cols;
         interface_actions[0].param_gatesNum             = gatesNum;
         interface_actions[0].param_gateSetNum           = gateSetNum_splitted;
+        interface_actions[0].param_traceOffset          = traceOffset;
         interface_actions[0].instream_gatesfromcpu      = gates_chunked;
         interface_actions[0].instream_size_gatesfromcpu = sizeof(gate_kernel_type)*gatesNum*gateSetNum;
         interface_actions[0].outstream_trace2cpu        = trace_fix; 
@@ -533,6 +534,7 @@ int calcqgdKernelDFE_oneShot(size_t rows, size_t cols, gate_kernel_type* gates, 
         interface_actions[0].param_cols                 = cols;
         interface_actions[0].param_gatesNum             = gatesNum;
         interface_actions[0].param_gateSetNum           = gateSetNum_splitted0;
+        interface_actions[0].param_traceOffset          = traceOffset;
         interface_actions[0].instream_gatesfromcpu      = gates_chunked0;
         interface_actions[0].instream_size_gatesfromcpu = sizeof(gate_kernel_type)*gatesNum*gateSetNum0;
         interface_actions[0].outstream_trace2cpu        = trace_fix0; 
@@ -543,6 +545,7 @@ int calcqgdKernelDFE_oneShot(size_t rows, size_t cols, gate_kernel_type* gates, 
         interface_actions[1].param_cols                 = cols;
         interface_actions[1].param_gatesNum             = gatesNum;
         interface_actions[1].param_gateSetNum           = gateSetNum_splitted1;
+        interface_actions[1].param_traceOffset          = traceOffset;
         interface_actions[1].instream_gatesfromcpu      = gates_chunked1;
         interface_actions[1].instream_size_gatesfromcpu = sizeof(gate_kernel_type)*gatesNum*gateSetNum1;
         interface_actions[1].outstream_trace2cpu        = trace_fix1; 
@@ -780,6 +783,7 @@ int calcqgdKernelDFE_oneShot(size_t rows, size_t cols, gate_kernel_type* gates, 
         interface_actions[0].param_cols                 = cols;
         interface_actions[0].param_gatesNum             = gatesNum;
         interface_actions[0].param_gateSetNum           = gateSetNum_splitted0;
+        interface_actions[0].param_traceOffset          = traceOffset;
         interface_actions[0].instream_gatesfromcpu      = gates_chunked0;
         interface_actions[0].instream_size_gatesfromcpu = sizeof(gate_kernel_type)*gatesNum*gateSetNum0;
         interface_actions[0].outstream_trace2cpu        = trace_fix0; 
@@ -790,6 +794,7 @@ int calcqgdKernelDFE_oneShot(size_t rows, size_t cols, gate_kernel_type* gates, 
         interface_actions[1].param_cols                 = cols;
         interface_actions[1].param_gatesNum             = gatesNum;
         interface_actions[1].param_gateSetNum           = gateSetNum_splitted1;
+        interface_actions[1].param_traceOffset          = traceOffset;
         interface_actions[1].instream_gatesfromcpu      = gates_chunked1;
         interface_actions[1].instream_size_gatesfromcpu = sizeof(gate_kernel_type)*gatesNum*gateSetNum1;
         interface_actions[1].outstream_trace2cpu        = trace_fix1; 
@@ -800,6 +805,7 @@ int calcqgdKernelDFE_oneShot(size_t rows, size_t cols, gate_kernel_type* gates, 
         interface_actions[2].param_cols                 = cols;
         interface_actions[2].param_gatesNum             = gatesNum;
         interface_actions[2].param_gateSetNum           = gateSetNum_splitted2;
+        interface_actions[2].param_traceOffset          = traceOffset;
         interface_actions[2].instream_gatesfromcpu      = gates_chunked2;
         interface_actions[2].instream_size_gatesfromcpu = sizeof(gate_kernel_type)*gatesNum*gateSetNum2;
         interface_actions[2].outstream_trace2cpu        = trace_fix2; 
@@ -928,7 +934,7 @@ int calcqgdKernelDFE_oneShot(size_t rows, size_t cols, gate_kernel_type* gates, 
  * \brief ???????????
  * 
  */
-int calcqgdKernelDFE(size_t rows, size_t cols, gate_kernel_type* gates, int gatesNum, int gateSetNum, double* trace )
+int calcqgdKernelDFE(size_t rows, size_t cols, gate_kernel_type* gates, int gatesNum, int gateSetNum, int traceOffset, double* trace )
 {
 
 
@@ -946,7 +952,7 @@ int calcqgdKernelDFE(size_t rows, size_t cols, gate_kernel_type* gates, int gate
            gateSetToProcess = gateSetNum - processedGateSet;     
        }
 
-       calcqgdKernelDFE_oneShot(rows, cols, gates+processedGateSet*gatesNum, gatesNum, gateSetToProcess, trace+3*processedGateSet );
+       calcqgdKernelDFE_oneShot(rows, cols, gates+processedGateSet*gatesNum, gatesNum, gateSetToProcess, traceOffset, trace+3*processedGateSet );
        
        
        processedGateSet = processedGateSet + gateSetToProcess;
