@@ -239,7 +239,7 @@ extern "C" size_t get_accelerator_free_num() {
   return free_devices;
 }
 
-extern "C" int initialize_DFE( const int accelerator_num_in )
+extern "C" int initialize_DFE( int accelerator_num_in )
 {
     if (accelerator_num_in != (int)accelerator_num) releive_groq(); 
     accelerator_num = accelerator_num_in;
@@ -1045,8 +1045,9 @@ int calcqgdKernelGroq_oneShot(size_t rows, size_t cols, gate_kernel_type* gates,
     return 0;
 }
 
-extern "C" int calcqgdKernelGroq(size_t rows, size_t cols, gate_kernel_type* gates, int gatesNum, int gateSetNum, double* trace)
+extern "C" int calcqgdKernelGroq(size_t rows, size_t cols, gate_kernel_type* gates, int gatesNum, int gateSetNum, int traceOffset, double* trace)
 {
+    if (traceOffset != 0) { printf("Unsupported traceOffset!=0\n"); return 1; }
     /*for (int gateSet = 0; gateSet < gateSetNum; gateSet += accelerator_num) {
         if (calcqgdKernelGroq_oneShot(rows, cols, gates+gateSet, gatesNum, gateSetNum-gateSet < accelerator_num ? gateSetNum-gateSet : accelerator_num, trace+gateSet)) return 1;
     }
@@ -1091,7 +1092,7 @@ int main(int argc, char* argv[])
         } 
     }
     double* trace = (double*)calloc(3*gateSetNum, sizeof(double));
-    calcqgdKernelGroq(rows, cols, gates, gatesNum, gateSetNum, trace);
+    calcqgdKernelGroq(rows, cols, gates, gatesNum, gateSetNum, 0, trace);
     for (int i = 0; i < gateSetNum; i++) {
         printf("%.9f %.9f %.9f\n", trace[3*i], trace[3*i+1], trace[3*i+2]);
     }
